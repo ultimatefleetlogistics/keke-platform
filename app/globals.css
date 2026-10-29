@@ -1,0 +1,530 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #F5F7F3;
+  --surface: #FFFFFF;
+  --border: #E7E9E4;
+
+  --text: #14171A;
+  --text-soft: #5B6058;
+  --text-faint: #8A8F86;
+
+  /* Module 60: the client logo's own blue, for the "Ultimate Fleet"
+     wordmark specifically, only where it sits on a light/white plate
+     (the sidebar, the mobile top bar, both `bg-surface`). Measured
+     8.8:1 contrast against this theme's white surface, plenty. See
+     the dark-mode block below for why this variable's value changes
+     there instead of getting reused as-is.
+     2026-10-24: no longer the only place blue shows up — see
+     --accent-charcoal immediately below, now a dark navy pulled from
+     this same blue rather than a separate, unrelated color. */
+  --brand: #2B42A0;
+
+  /* Keke gold, the single brand accent. Never reused for status colors. */
+  --accent: #C9820A;
+  --accent-dark: #7A4A05;
+  --accent-soft: #FCEEDA;
+
+  /* 2026-10-24: direct feedback that the marketing site's dark panels
+     (hero, footer, service-card image tile, Why Choose Us banner,
+     About page banner — every `bg-accent-charcoal` in components/
+     marketing and app/{page,about/page,services/page}.tsx) read as
+     "brownish" and should use the brand's actual palette instead: blue,
+     gold, white. This was a warm near-black brown (#1F1A12) with no
+     real relationship to --brand above; replaced with a deep navy
+     pulled from that same blue (#2B42A0 darkened) so every dark panel
+     on the site is now unmistakably "brand blue," not an unrelated
+     neutral. White text and the gold --accent glow (service-card.tsx's
+     radial highlight) sit on top of it exactly as before, now reading
+     as the intended blue/gold/white combination rather than
+     brown/gold/white. --shadow-card below was retinted to match (was
+     rgba(31, 26, 18, …), the old charcoal's own RGB). */
+  --accent-charcoal: #132254;
+
+  /* 2026-10-24 (later still): direct feedback that reusing the navy
+     --accent-charcoal above as a semi-transparent wash OVER photos
+     (the hero, the Why Choose Us banner, the About page banner) "don't
+     actually look cool" and reads too light. Those are a different job
+     from --accent-charcoal's other use (a flat, opaque panel — footer,
+     service-card tile) where a clean brand navy is exactly right: a
+     colored wash over a photo blends with whatever's already in the
+     image and can read as a muddy color cast rather than a deliberate
+     tint, especially at the lighter opacities the hero was tuned to
+     on 2026-10-23. This is a near-black with only a faint cool tint
+     (not pure neutral #000, so it still feels related to the brand
+     rather than generic) instead, at higher opacity stops than before
+     for the "bit too light, make it dim" feedback — see each usage's
+     own comment for the exact before/after numbers. */
+  --photo-overlay: #080b14;
+
+  /* Status colors, deliberately distinct from the brand accent. */
+  --good: #0ca30c;
+  --good-ink: #0a7a0a;
+  --good-soft: #E7F7E7;
+
+  --warn: #E0650F;
+  --warn-ink: #8A3C06;
+  --warn-soft: #FBE3D2;
+
+  --bad: #d03b3b;
+  --bad-ink: #a32323;
+  --bad-soft: #FBE7E7;
+
+  --violet: #7C5CFC;
+  --violet-soft: #EFEAFE;
+
+  --teal: #0EA5A5;
+  --teal-soft: #E1F5F5;
+
+  --rose: #F0538B;
+  --rose-soft: #FDE7EF;
+
+  --pending: #8A8FA6;
+  --pending-soft: #EDEEF2;
+
+  --radius: 0.85rem;
+
+  /* Soft elevation tinted from --accent-charcoal (navy, see above)
+     rather than plain black, so cards read as lifted paper rather than
+     a generic UI-kit shadow. Used on every Card by default, see
+     components/ui/card.tsx. Retinted 2026-10-24 alongside
+     --accent-charcoal's brown-to-navy change, same RGB as that token. */
+  --shadow-card: 0 1px 2px rgba(19, 34, 84, 0.05), 0 10px 24px -14px rgba(19, 34, 84, 0.18);
+  --shadow-card-hover: 0 2px 4px rgba(19, 34, 84, 0.07), 0 18px 34px -14px rgba(19, 34, 84, 0.24);
+}
+
+/**
+ * Module 42: dark mode. Every color a component uses already routes
+ * through one of the custom properties above (a Tailwind class like
+ * `bg-background` resolves to `--color-background`, which the `@theme
+ * inline` block below just aliases to this same `--background`), so the
+ * whole app re-themes by redefining these same property names under a
+ * `data-theme="dark"` attribute on <html>, not by touching what any
+ * component actually renders. That attribute is set two ways: an inline
+ * `beforeInteractive` script in app/layout.tsx reads a saved choice from
+ * localStorage (falling back to the OS preference) before first paint,
+ * so there's no flash of the wrong theme, and `ThemeToggle`
+ * (components/layout/theme-toggle.tsx) flips it after that. The
+ * `@media` block below is a no-JS/no-localStorage fallback for the same
+ * OS-preference default the init script already applies, guarded so an
+ * explicit light choice (`data-theme="light"`) still wins over it.
+ *
+ * 2026-10-24: this was a warm charcoal (`--background`/`--surface` as
+ * close relatives of `--accent-charcoal`, matching the hero gradient and
+ * the mobile app's dark surfaces) until direct feedback that it "shows
+ * dark brown" — reported true, #1b160f/#241e14 do carry a visible brown
+ * cast rather than reading as black. Replaced with neutral near-black
+ * values below (no warm tint) per that feedback. `--accent` itself is
+ * still brightened a little (deeper gold reads muddy on a dark
+ * background); `--accent-dark` and every `*-soft` chip background still
+ * swap roles the way an ink/background pair always has to when the
+ * surface goes from light to dark: `*-soft` becomes a dark tinted chip,
+ * the ink color becomes the light text that reads on top of it.
+ *
+ * 2026-10-24 (later same day): `--accent-charcoal` specifically also
+ * picked up a navy tint right after the above, per the follow-up
+ * request to use the brand's actual blue/gold/white instead of a
+ * generic neutral for the marketing site's dark panels (see the long
+ * comment on this same token in the light-mode `:root` block above for
+ * which panels that is). Kept dark enough that it still reads as
+ * "black" at a glance, same as the fix just above intended, just with
+ * a hint of the brand blue instead of zero hue at all.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0a0a0a;
+    --surface: #161616;
+    --border: #2e2e2e;
+
+    --text: #f3efe6;
+    --text-soft: #c7c0ac;
+    --text-faint: #93897a;
+
+    /* Module 60: NOT the light theme's brand blue (#2B42A0) — that
+       measures ~1.9:1 against this theme's --surface (#241e14),
+       nearly invisible, the exact problem the icon's own white plate
+       exists to solve. Text can't get a plate the same way an icon
+       can, so it falls back to this theme's normal --text color
+       instead of introducing a second, separately-tuned dark-mode
+       blue no one asked for. */
+    --brand: #f3efe6;
+
+    --accent: #e0a335;
+    --accent-dark: #f3cd8a;
+    --accent-soft: #3d2e12;
+    --accent-charcoal: #070b1c;
+
+    --good: #33c25a;
+    --good-ink: #7fe39a;
+    --good-soft: #163625;
+
+    --warn: #f2924a;
+    --warn-ink: #f7c08a;
+    --warn-soft: #3d2712;
+
+    --bad: #ef6161;
+    --bad-ink: #f7a3a3;
+    --bad-soft: #3b1616;
+
+    --violet: #a78bfa;
+    --violet-soft: #2b2242;
+
+    --teal: #4dd4d4;
+    --teal-soft: #133434;
+
+    --rose: #f786ae;
+    --rose-soft: #3a1b29;
+
+    --pending: #a9aec2;
+    --pending-soft: #23252e;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 24px -14px rgba(0, 0, 0, 0.55);
+    --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 34px -14px rgba(0, 0, 0, 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #0a0a0a;
+  --surface: #161616;
+  --border: #2e2e2e;
+
+  --text: #f3efe6;
+  --text-soft: #c7c0ac;
+  --text-faint: #93897a;
+
+  /* Same value and reasoning as the prefers-color-scheme dark block
+     above — kept in sync manually, this file has no single source for
+     both, same precedent every other token here already follows. */
+  --brand: #f3efe6;
+
+  --accent: #e0a335;
+  --accent-dark: #f3cd8a;
+  --accent-soft: #3d2e12;
+  --accent-charcoal: #070b1c;
+
+  --good: #33c25a;
+  --good-ink: #7fe39a;
+  --good-soft: #163625;
+
+  --warn: #f2924a;
+  --warn-ink: #f7c08a;
+  --warn-soft: #3d2712;
+
+  --bad: #ef6161;
+  --bad-ink: #f7a3a3;
+  --bad-soft: #3b1616;
+
+  --violet: #a78bfa;
+  --violet-soft: #2b2242;
+
+  --teal: #4dd4d4;
+  --teal-soft: #133434;
+
+  --rose: #f786ae;
+  --rose-soft: #3a1b29;
+
+  --pending: #a9aec2;
+  --pending-soft: #23252e;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 24px -14px rgba(0, 0, 0, 0.55);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 34px -14px rgba(0, 0, 0, 0.6);
+}
+
+/* Smooth, not instant, when ThemeToggle actually flips the attribute
+   (the initial script-set theme above is unaffected, this never runs
+   before first paint, so it can't cause a flash). Scoped to color
+   properties only, deliberately not `transform`/`opacity`/etc, so this
+   never fights the entrance animations already in this file or in
+   individual components. */
+*,
+*::before,
+*::after {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, fill 0.15s ease, stroke 0.15s ease;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+
+  --color-text: var(--text);
+  --color-text-soft: var(--text-soft);
+  --color-text-faint: var(--text-faint);
+
+  --color-brand: var(--brand);
+
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-charcoal: var(--accent-charcoal);
+  --color-photo-overlay: var(--photo-overlay);
+
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-good-soft: var(--good-soft);
+
+  --color-warn: var(--warn);
+  --color-warn-ink: var(--warn-ink);
+  --color-warn-soft: var(--warn-soft);
+
+  --color-bad: var(--bad);
+  --color-bad-ink: var(--bad-ink);
+  --color-bad-soft: var(--bad-soft);
+
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+
+  --color-teal: var(--teal);
+  --color-teal-soft: var(--teal-soft);
+
+  --color-rose: var(--rose);
+  --color-rose-soft: var(--rose-soft);
+
+  --color-pending: var(--pending);
+  --color-pending-soft: var(--pending-soft);
+
+  --font-sans: var(--font-plus-jakarta-sans);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Loading skeletons, see components/ui/skeleton.tsx. A slow sweeping
+   shimmer rather than a flat pulse, since the database round trip these
+   are covering for (Nigeria to wherever Supabase is hosted) is genuinely
+   long enough that a static gray block starts to look broken rather than
+   "still working." */
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.skeleton {
+  background-image: linear-gradient(90deg, var(--border) 25%, #eef0e9 37%, var(--border) 63%);
+  background-size: 400px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* A notification card (see app/kyc/identity-form.tsx) settling in rather
+   than just appearing, so it reads as a direct reaction to something the
+   person just did instead of static text that happened to be on the page
+   the whole time. Runs once on mount, a subtle 6px rise plus fade, nothing
+   bouncy enough to feel like it's asking for attention it hasn't earned. */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-card-in {
+  animation: card-in 0.32s ease-out;
+}
+
+/* Module 42: "cool animations where necessary, example at... login in,
+   login out." The sign-in page's hero panel and its form panel
+   (app/sign-in/page.tsx, app/admin-sign-in/page.tsx) settle in from
+   opposite sides on first paint instead of just appearing, the one
+   moment on the web app that reads as an app "launching" rather than a
+   dashboard page loading. This same page is also where SignOutButton
+   (components/layout/sign-out-button.tsx) redirects back to, so the
+   same entrance now covers both the "login in" and "login out" arrival,
+   no separate exit animation is needed on the page a person is leaving.
+   Kept short and directional (16px, not the card's 6px) so it reads as
+   the two halves of the screen arriving, not a generic fade. */
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.42s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.42s ease-out 0.06s both;
+}
+
+/* Module 50: direct feedback, make the app feel more premium. Every
+   scrollable area (the sidebar's nav list once a section expands past
+   its height, a long table, any overflowing Card) used to fall back to
+   the browser's own default scrollbar, gray and chunky against a UI
+   this deliberately themed everywhere else. Thin, a border-toned track,
+   and a text-faint thumb that warms to the brand accent on hover, so
+   scrolling itself reads as part of this app rather than the OS chrome
+   showing through. `scrollbar-width`/`scrollbar-color` is the standard
+   (Firefox, and Chromium/Safari now accept it too); the `::-webkit-*`
+   rules beneath are the same intent for engines that still need them
+   spelled out explicitly, both kept since browser support is uneven.
+   Global rather than scoped to one component: a second, different-
+   looking scrollbar anywhere else would be its own inconsistency. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-faint);
+}
+
+/* Module 50: the per-portal route fade (see app/admin/template.tsx and
+   its investor/agent/driver equivalents). A `template.tsx` remounts on
+   every navigation, which is what re-triggers this animation each time,
+   unlike a layout.tsx which persists. Opacity only, no translate: these
+   pages vary a lot in height, and a vertical shift on a tall page reads
+   as a jump rather than a polish. Deliberately shorter and gentler than
+   the sign-in/out slide (`slide-in-left`/`-right` above, still exactly
+   as they were) so ordinary in-app navigation never competes with that
+   one "arriving" moment. Guarded by `prefers-reduced-motion`, unlike the
+   unconditional animations above: those fire once per page and are
+   easy to justify even for a motion-sensitive visitor, this one would
+   otherwise fire on literally every click. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes page-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-page-in {
+    animation: page-in 0.18s ease-out;
+  }
+}
+
+/* Module 64: public homepage, 2026-10-22. Scroll-reveal for marketing
+   sections (components/marketing/reveal.tsx) — starts hidden/offset,
+   JS adds `.is-visible` the first time a section enters the viewport.
+   `prefers-reduced-motion` visitors never see the hidden state at all:
+   content sits at full opacity in place regardless of what the reveal
+   component's own JS/observer is doing. */
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Module 64: public homepage hero, 2026-10-22. The headline, copy, and
+   buttons settle in on first paint, staggered a beat apart (inline
+   `animationDelay` per element in app/page.tsx) rather than the whole
+   hero just appearing at once. */
+@keyframes hero-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-hero-fade-up {
+    animation: hero-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+/* Module 64: public homepage hero image panel, 2026-10-22. A slow,
+   continuous bob on the three vehicle cutouts in the "One Platform"
+   section (components/marketing/fleet-showcase.tsx) — the one bit of
+   "always moving" motion on the page; everything else only animates in
+   response to scrolling or hovering. Kept to a few px so it reads as
+   alive, not distracting, and each vehicle runs a slightly different
+   timing/offset so the three don't bob in lockstep. */
+@keyframes float-a {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-10px) rotate(1deg); }
+}
+@keyframes float-b {
+  0%, 100% { transform: translateY(0) rotate(1deg); }
+  50% { transform: translateY(-14px) rotate(-1deg); }
+}
+@keyframes float-c {
+  0%, 100% { transform: translateY(0) rotate(-0.5deg); }
+  50% { transform: translateY(-8px) rotate(0.5deg); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-float-a {
+    animation: float-a 5s ease-in-out infinite;
+  }
+  .animate-float-b {
+    animation: float-b 6s ease-in-out infinite 0.3s;
+  }
+  .animate-float-c {
+    animation: float-c 5.5s ease-in-out infinite 0.6s;
+  }
+}

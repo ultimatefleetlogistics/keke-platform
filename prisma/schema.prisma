@@ -1,0 +1,1056 @@
+// Keke Investment, Fleet and Investor Management Platform
+// Prisma schema. Every business rule that can vary between contracts lives
+// as data on InvestmentContract, never as a hard coded constant in code.
+// The fleet itself is not Keke-only: Vehicle.type distinguishes a keke from
+// a car or bike, see VehicleType below and lib/vehicle-types.ts for the
+// per-type default contract terms used to pre-fill a new contract.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+// Module 46: the outcome of checking a submitted BVN or NIN against
+// Dojah, kept separate from KycStatus above, which is staff's own
+// decision on the investor's whole KYC submission (documents included),
+// never set automatically from this. See InvestorProfile's own comment
+// for how these four values map to InvestorProfile.bvnVerificationStatus
+// / ninVerificationStatus.
+enum VerificationStatus {
+  // Dojah found a record for the submitted number and the name on it
+  // reasonably matches the investor's own stated full name.
+  VERIFIED
+  // Dojah found a record, but the name on it does not match what the
+  // investor entered as their own name, worth a staff member's direct
+  // attention, this is the strongest automated signal something may be
+  // wrong (e.g. someone else's BVN/NIN).
+  NAME_MISMATCH
+  // Dojah has no record for this number at all, it does not exist or was
+  // mistyped.
+  NOT_FOUND
+  // The check itself could not complete (Dojah unreachable, misconfigured
+  // credentials, an unexpected response), not a statement about the
+  // BVN/NIN itself either way, never treated as a red flag on its own.
+  FAILED
+}
+
+enum KycDocumentType {
+  GOVERNMENT_ID
+  PROOF_OF_ADDRESS
+}
+
+enum KycDocumentStatus {
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum VehicleStatus {
+  PENDING_ONBOARDING
+  ACTIVE
+  MAINTENANCE
+  UNASSIGNED
+  RETIRED
+}
+
+// What kind of asset a contract is actually financing. Added so the same
+// InvestmentContract shape (already fully data driven, see the file header)
+// can back a car or bike deal exactly the way it already backs a keke deal,
+// without a second contract model. lib/vehicle-types.ts holds the default
+// principal/installment/frequency/term/target used to pre-fill a new
+// contract for each type, staff can still override every one of them per
+// contract, same as today.
+enum VehicleType {
+  KEKE
+  CAR
+  BIKE
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  TARGET_ACHIEVED
+  TRANSFER_IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum ScheduleEntryStatus {
+  UPCOMING
+  DUE
+  PARTIALLY_PAID
+  PAID
+  DEFERRED
+}
+
+enum PaymentDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum PaymentSource {
+  INVESTOR_FUNDING
+  AGENT_REMITTANCE
+  INVESTOR_PAYOUT
+  MANUAL_ADJUSTMENT
+}
+
+enum PaymentTransactionStatus {
+  RECORDED
+  ALLOCATED
+  REVERSED
+}
+
+enum ProviderTransactionStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  UNMATCHED
+}
+
+enum BatchStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PROCESSING
+  COMPLETED
+  PARTIALLY_FAILED
+  REJECTED
+}
+
+enum BatchItemTransferStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// Whether a PaymentBatchItem's payout goes straight to the investor's bank
+// account (the long standing default) or is held in their in-app wallet
+// instead. Staff choose this per item when creating a batch, the system
+// never decides this on its own.
+enum PayoutDestination {
+  BANK
+  WALLET
+}
+
+// Every row in WalletTransaction is one ledger entry, CREDIT increases the
+// investor's wallet balance, DEBIT decreases it. There is no separate
+// mutable balance field the system writes directly, InvestorProfile.walletBalance
+// is a denormalized total kept in sync with these entries, the entries
+// themselves are the source of truth.
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+}
+
+// Where a wallet ledger entry came from. PAYOUT_HELD is a CREDIT created the
+// moment a batch item routed to the wallet (payoutDestination = WALLET)
+// succeeds, it mirrors exactly what would have happened had the payout gone
+// to the bank, just held in the ledger instead of wired out. DEPOSIT
+// (Module 41) is a CREDIT created the moment Paystack confirms a real
+// inbound bank transfer into the investor's own Dedicated Virtual Account
+// (see InvestorProfile.paystackCustomerCode and
+// lib/payments/webhook-handler.ts), the same "a payment rail already
+// confirmed real money moved, so no staff approval gate" reasoning as
+// PAYOUT_HELD and as agent/driver remittances, this is not the system
+// deciding to move money on its own, it's recording that it already did.
+// WITHDRAWAL is a DEBIT created only once a staff member approves a
+// WalletWithdrawal, never automatically. VEHICLE_FUNDING is a DEBIT
+// created only once a staff member approves converting wallet balance
+// into the principal of a brand new InvestmentContract, also never
+// automatic, not even for a DEPOSIT credit whose depositIntent was
+// VEHICLE_PURCHASE, that only flags the deposit for staff to act on
+// quickly, it never creates the contract by itself. MANUAL_ADJUSTMENT
+// covers a staff correction, same spirit as PaymentSource.MANUAL_ADJUSTMENT.
+enum WalletTransactionSource {
+  PAYOUT_HELD
+  DEPOSIT
+  WITHDRAWAL
+  VEHICLE_FUNDING
+  MANUAL_ADJUSTMENT
+}
+
+// What an investor's deposit (WalletTransactionSource.DEPOSIT) is for, set
+// as a standing preference on InvestorProfile.depositIntent and
+// snapshotted onto the WalletTransaction at the moment the deposit is
+// processed. WALLET_TOPUP is free wallet balance, withdrawable like any
+// other. VEHICLE_PURCHASE flags the deposit as intended toward a new
+// vehicle, so staff are asked to fund it quickly rather than let it sit as
+// plain balance, see InvestorProfile.depositIntentVehicleType.
+enum DepositIntent {
+  WALLET_TOPUP
+  VEHICLE_PURCHASE
+}
+
+// A bank change request always starts PENDING_APPROVAL, the account only
+// actually changes once a staff member reviews it, same maker-checker
+// principle as WalletWithdrawalStatus. CANCELLED is the one status the
+// investor sets themselves, not staff, only reachable from
+// PENDING_APPROVAL, mirrors WalletWithdrawalStatus.CANCELLED exactly.
+enum BankChangeRequestStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// A withdrawal request always starts PENDING_APPROVAL, real money only
+// moves after a staff member reviews it, matching the same maker-checker
+// principle already used for payment batches and ownership transfers.
+// CANCELLED (Module 23) is the one status the investor sets themselves,
+// not staff, only reachable from PENDING_APPROVAL, before any money has
+// moved, see cancelWalletWithdrawal in lib/actions/wallet.ts.
+enum WalletWithdrawalStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+enum OwnershipTransferTarget {
+  MANAGER
+  NEW_INVESTOR
+}
+
+enum OwnershipTransferStatus {
+  TARGET_ACHIEVED
+  VERIFICATION_PENDING
+  VERIFIED
+  APPROVAL_PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DocumentType {
+  CONTRACT
+  MAINTENANCE_RECEIPT
+  ASSET_PHOTO
+  OTHER
+}
+
+enum DocumentVisibility {
+  PRIVATE_OWNER
+  STAFF_ONLY
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Identity and RBAC
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(uuid())
+  authId    String   @unique // Supabase auth.users.id
+  email     String   @unique
+  phone     String?
+  fullName  String
+  isActive  Boolean  @default(true)
+  // Module 26: true only for an account someone else created with a
+  // generated temporary password (createInvestor, createDriver,
+  // createStaffOrAgentAccount), false for anyone who chose their own
+  // password themselves (signUpInvestor, bootstrapFirstAdmin). Every
+  // portal layout redirects to /change-password while this is true,
+  // changePassword in lib/actions/auth.ts sets it back to false once
+  // they actually change it, never anywhere else.
+  mustChangePassword Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  investor InvestorProfile?
+  staff    StaffProfile?
+  agent    Agent?
+  driver   Driver?
+
+  roleAssignments RoleAssignment[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false) // system roles (Admin) cannot be deleted from the UI
+  createdAt   DateTime @default(now())
+
+  permissions RolePermission[]
+  assignments RoleAssignment[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(uuid())
+  key         String @unique // e.g. "payments.batch.create"
+  description String
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RoleAssignment {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("role_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Investor
+// ---------------------------------------------------------------------------
+
+model InvestorProfile {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  kycStatus KycStatus @default(NOT_STARTED)
+
+  // Collected since phase one. Module 46 added automated verification
+  // against Dojah (see lib/verification/dojah-client.ts and
+  // docs/architecture/CURRENT_STATE.md's "BVN/NIN verification" section
+  // for the reasoning and the vendor research behind picking Dojah).
+  // These two raw strings are exactly what the investor typed, unchanged;
+  // the four fields below record what, if anything, checking that string
+  // against Dojah found. All four stay null until a check has actually
+  // run (DOJAH_API_KEY/DOJAH_APP_ID unset, submitted before Module 46, or
+  // the investor hasn't saved this step since verification was added), a
+  // real distinction from "checked and it failed," which is a real status
+  // value, not null.
+  bvn                   String?
+  bvnVerificationStatus VerificationStatus?
+  bvnVerifiedName       String?
+  bvnVerifiedAt         DateTime?
+  nin                   String?
+  ninVerificationStatus VerificationStatus?
+  ninVerifiedName       String?
+  ninVerifiedAt         DateTime?
+
+  bankAccountNumber     String?
+  bankCode              String?
+  bankAccountName       String?
+  paystackRecipientCode String? // used for Paystack Transfers payouts
+
+  // Module 41: the investor's own Paystack Dedicated Virtual Account, same
+  // idea as Agent.paystackCustomerCode / Driver.paystackCustomerCode, an
+  // account number this specific investor can send money into to deposit.
+  // A charge.success webhook against this customer code is what credits
+  // walletBalance below (see lib/payments/webhook-handler.ts), the same
+  // way an agent or driver's remittance already does. Unlike bankCode/
+  // bankAccountNumber/bankAccountName above, which is where THIS
+  // investor's money goes OUT to, this is where THEIR money comes IN
+  // from, two different accounts serving opposite directions.
+  paystackCustomerCode     String? @unique
+  paystackDvaAccountNumber String?
+  paystackDvaBankName      String?
+
+  // Module 41: the investor's own standing choice for what a deposit into
+  // their account above is for, set on /investor/wallet and editable at
+  // any time, same "standing preference, snapshotted at the moment it
+  // matters" pattern as defaultPayoutDestination below.
+  // WalletTransaction.depositIntent/depositIntentVehicleType is the copy
+  // taken at the moment a deposit is actually processed, so a later change
+  // here never rewrites what an already-processed deposit was for.
+  // depositIntentVehicleType is only ever read when depositIntent is
+  // VEHICLE_PURCHASE, it has no meaning otherwise. Choosing
+  // VEHICLE_PURCHASE never creates a contract by itself, see
+  // WalletTransactionSource.DEPOSIT's comment, it only flags the deposit
+  // for staff to act on quickly at /admin/wallet/funding, the same manual
+  // "fund a vehicle from wallet" decision staff already make today.
+  depositIntent            DepositIntent @default(WALLET_TOPUP)
+  depositIntentVehicleType VehicleType?
+
+  // Module 26: the investor's own standing choice, set at onboarding
+  // (defaults to BANK) and editable later on /investor/payout-details,
+  // never per batch item anymore. createPaymentBatch reads this once per
+  // investor when a batch is created, no staff member picks it per row.
+  // PaymentBatchItem.payoutDestination is still the actual field a batch
+  // item settles against (a copy taken at batch-creation time, so a later
+  // change here never silently rewrites the destination of a batch
+  // that's already pending approval), this is only ever the default new
+  // batches are built from.
+  defaultPayoutDestination PayoutDestination @default(BANK)
+
+  // Denormalized running total, always equal to the sum of this investor's
+  // WalletTransaction entries. This is a ledger figure only, it does not
+  // represent money actually held anywhere by this platform, the real cash
+  // stays in the company's bank account until a staff member approves a
+  // withdrawal or a vehicle funding, see docs/architecture for the design.
+  walletBalance Decimal @default(0) @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kycDocuments       KycDocument[]
+  contracts          InvestmentContract[]
+  batchItems         PaymentBatchItem[]
+  ownershipsFrom     OwnershipTransfer[]  @relation("TransferFromInvestor")
+  ownershipsTo       OwnershipTransfer[]  @relation("TransferToInvestor")
+  walletTransactions WalletTransaction[]
+  walletWithdrawals  WalletWithdrawal[]
+  bankChangeRequests InvestorBankChangeRequest[]
+
+  @@map("investor_profiles")
+}
+
+// Module 41: an investor asking to change the bank account their payouts
+// and withdrawals go to. Unlike the phone number self-service update
+// (updateOwnPhone, immediate, no review needed, a wrong phone number only
+// risks a missed alert), a bank account controls where real money is sent,
+// so this is a request a staff member must approve before
+// InvestorProfile.bankCode/bankAccountNumber/bankAccountName actually
+// change, same maker-checker principle as WalletWithdrawal. The account
+// number and bank are still resolved against Paystack up front, at request
+// time, not only at approval time, so staff approving a request are always
+// looking at a real, confirmed account name, never whatever the investor
+// typed. Staff editing an investor's bank details directly from
+// /admin/investors/[id] (updateInvestorBankDetails) is unaffected by any
+// of this, that path is staff acting with their own authority, this model
+// only exists for the investor's own self-service request.
+model InvestorBankChangeRequest {
+  id            String                    @id @default(uuid())
+  investorId    String
+  bankCode      String
+  bankName      String // resolved display name at request time, same reasoning as the bankName cached nowhere else in this app, see payout-details page comments
+  accountNumber String
+  accountName   String // resolved against Paystack at request time, never whatever the investor typed
+  status        BankChangeRequestStatus   @default(PENDING_APPROVAL)
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  reviewedBy StaffProfile?   @relation(fields: [reviewedById], references: [id])
+
+  @@map("investor_bank_change_requests")
+}
+
+model KycDocument {
+  id         String            @id @default(uuid())
+  investorId String
+  type       KycDocumentType
+  storagePath String
+  fileName   String
+  status     KycDocumentStatus @default(PENDING_REVIEW)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt  DateTime          @default(now())
+
+  investor InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@map("kyc_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Staff, Agents, Drivers
+// ---------------------------------------------------------------------------
+
+model StaffProfile {
+  id       String  @id @default(uuid())
+  userId   String  @unique
+  jobTitle String?
+
+  createdAt DateTime @default(now())
+
+  user                       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdBatches             PaymentBatch[]         @relation("BatchCreatedBy")
+  batchApprovals             PaymentBatchApproval[]
+  verifiedTransfers          OwnershipTransfer[]    @relation("TransferVerifiedBy")
+  approvedTransfers          OwnershipTransfer[]    @relation("TransferApprovedBy")
+  createdWalletTransactions  WalletTransaction[]
+  reviewedWalletWithdrawals  WalletWithdrawal[]
+  reviewedBankChangeRequests InvestorBankChangeRequest[]
+
+  @@map("staff_profiles")
+}
+
+model Agent {
+  id     String  @id @default(uuid())
+  userId String  @unique
+  region String?
+
+  // Paystack Dedicated Virtual Account used to collect remittances from this
+  // agent. See lib/payments/paystack-provider.ts for how this is created.
+  paystackCustomerCode      String? @unique
+  paystackDvaAccountNumber  String?
+  paystackDvaBankName       String?
+
+  // Module 59: agents and drivers have no self-service portal (see
+  // client-decisions-log.md decision #1), so unlike InvestorProfile's own
+  // kycStatus, nothing ever moves this to PENDING_REVIEW automatically,
+  // staff enter and submit an agent's documents on their behalf at
+  // onboarding or any time after, see lib/actions/agent-driver-kyc.ts.
+  // Reuses the same KycStatus enum InvestorProfile already uses, this is
+  // the identical verified/rejected verdict, just staff-entered instead of
+  // self-service.
+  kycStatus KycStatus @default(NOT_STARTED)
+
+  createdAt DateTime @default(now())
+
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicles  Vehicle[]
+  drivers   Driver[]
+  documents AgentDriverDocument[]
+
+  @@map("agents")
+}
+
+model Driver {
+  id      String  @id @default(uuid())
+  userId  String? @unique // a driver may or may not have direct app access
+  agentId String
+  fullName String
+  phone    String?
+
+  paystackCustomerCode     String? @unique
+  paystackDvaAccountNumber String?
+  paystackDvaBankName      String?
+
+  // Module 59: same staff-entered KYC as Agent.kycStatus above, see that
+  // field's own comment.
+  kycStatus KycStatus @default(NOT_STARTED)
+
+  createdAt DateTime @default(now())
+
+  user            User?              @relation(fields: [userId], references: [id])
+  agent           Agent              @relation(fields: [agentId], references: [id])
+  currentVehicle  Vehicle?           @relation("CurrentDriver")
+  assignments     DriverAssignment[]
+  documents       AgentDriverDocument[]
+
+  @@map("drivers")
+}
+
+// Module 59: an agent's or driver's government ID / proof of address,
+// staff-entered since neither account type signs into anything themselves
+// (client-decisions-log.md decision #1). Deliberately its own table rather
+// than widening KycDocument (which stays investor-only, its investorId
+// column is required, not optional, and changing that would risk the
+// existing investor KYC flow for a feature that only needs the same two
+// document types on a different subject). Exactly one of agentId/driverId
+// is set, never both, never neither, enforced with a CHECK constraint at
+// the database level, see this migration's own SQL
+// (prisma/migrations/20260929120000_add_agent_driver_kyc_and_manual_payments)
+// for the exact constraint, Prisma's schema language has no way to
+// express that XOR itself. reviewedById is a plain String, not a real
+// @relation, same reasoning as KycDocument.reviewedById, see
+// lib/data/kyc.ts's getInvestorKycDetail doc comment.
+model AgentDriverDocument {
+  id           String            @id @default(uuid())
+  agentId      String?
+  driverId     String?
+  type         KycDocumentType
+  storagePath  String
+  fileName     String
+  status       KycDocumentStatus @default(PENDING_REVIEW)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime          @default(now())
+
+  agent  Agent?  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  driver Driver? @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("agent_driver_documents")
+}
+
+model DriverAssignment {
+  id        String    @id @default(uuid())
+  driverId  String
+  vehicleId String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  reason    String?
+
+  driver  Driver  @relation(fields: [driverId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@map("driver_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Fleet
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id          String        @id @default(uuid())
+  assetTag    String        @unique // e.g. "KKE-057", "CAR-012", "BIKE-004", shown throughout the UI
+  type        VehicleType   @default(KEKE)
+  frameNumber String?       @unique // chassis/frame/VIN, whichever applies to this vehicle's type
+  plateNumber String?       @unique
+  status      VehicleStatus @default(PENDING_ONBOARDING)
+  location    String?
+  agentId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent              Agent?               @relation(fields: [agentId], references: [id])
+  currentDriverId    String?              @unique
+  currentDriver      Driver?              @relation("CurrentDriver", fields: [currentDriverId], references: [id])
+  driverAssignments  DriverAssignment[]
+  contracts          InvestmentContract[]
+  maintenanceRecords MaintenanceRecord[]
+  documents          Document[]
+  ownershipTransfers OwnershipTransfer[]
+
+  @@map("vehicles")
+}
+
+model MaintenanceRecord {
+  id          String            @id @default(uuid())
+  vehicleId   String
+  status      MaintenanceStatus @default(SCHEDULED)
+  description String
+  cost        Decimal?          @db.Decimal(14, 2)
+  performedAt DateTime?
+  createdById String
+  createdAt   DateTime          @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@map("maintenance_records")
+}
+
+// ---------------------------------------------------------------------------
+// Investment contracts and payment schedules
+// ---------------------------------------------------------------------------
+
+model InvestmentContract {
+  id         String @id @default(uuid())
+  investorId String
+  vehicleId  String
+
+  // Every one of these is configurable per contract, never a code constant.
+  // lib/vehicle-types.ts supplies the starting defaults based on the
+  // vehicle's type (keke, car, or bike), but nothing stops any of them
+  // being overridden per contract.
+  principalAmount    Decimal          @db.Decimal(14, 2) // cost used to acquire the vehicle
+  targetPayoutAmount Decimal          @db.Decimal(14, 2) // total to be paid to the investor before the vehicle is considered settled
+  installmentAmount  Decimal          @db.Decimal(14, 2)
+  paymentFrequency   PaymentFrequency
+  termMonths         Int              // expected/maximum duration, not the trigger for settlement
+
+  status              ContractStatus @default(DRAFT)
+  startDate           DateTime?
+  totalPaidToInvestor Decimal        @default(0) @db.Decimal(14, 2) // denormalized running total toward targetPayoutAmount
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  investor           InvestorProfile        @relation(fields: [investorId], references: [id])
+  vehicle             Vehicle                @relation(fields: [vehicleId], references: [id])
+  scheduleEntries     PaymentScheduleEntry[]
+  documents           Document[]
+  ownershipTransfers  OwnershipTransfer[]
+  batchItems          PaymentBatchItem[]
+  // Set only when this contract's principal was funded by converting an
+  // investor's wallet balance instead of new external investment, see
+  // WalletTransaction.fundedContractId and WalletTransactionSource.VEHICLE_FUNDING.
+  walletFunding       WalletTransaction?
+
+  @@map("investment_contracts")
+}
+
+model PaymentScheduleEntry {
+  id             String              @id @default(uuid())
+  contractId     String
+  dueDate        DateTime
+  expectedAmount Decimal             @db.Decimal(14, 2)
+  amountPaid     Decimal             @default(0) @db.Decimal(14, 2) // denormalized, kept in sync as allocations land
+  status         ScheduleEntryStatus @default(UPCOMING)
+
+  createdAt DateTime @default(now())
+
+  contract    InvestmentContract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  allocations PaymentAllocation[]
+
+  @@map("payment_schedule_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Payments ledger
+//
+// ProviderTransaction is the untouched record of what Paystack told us.
+// PaymentTransaction is our interpretation of it (or of a manual entry).
+// PaymentAllocation is how a transaction's amount is applied against one or
+// more schedule entries, since a single remittance can cover more than one
+// due installment.
+// ---------------------------------------------------------------------------
+
+model ProviderTransaction {
+  id          String                     @id @default(uuid())
+  provider    String                     @default("paystack")
+  providerRef String                     @unique // Paystack event/transaction reference, the idempotency key
+  eventType   String
+  rawPayload  Json
+  status      ProviderTransactionStatus  @default(RECEIVED)
+  receivedAt  DateTime                   @default(now())
+  processedAt DateTime?
+
+  paymentTransaction PaymentTransaction?
+
+  @@map("provider_transactions")
+}
+
+model PaymentTransaction {
+  id                     String                    @id @default(uuid())
+  direction              PaymentDirection
+  source                 PaymentSource
+  amount                 Decimal                   @db.Decimal(14, 2)
+  currency               String                    @default("NGN")
+  status                 PaymentTransactionStatus  @default(RECORDED)
+
+  providerTransactionId String? @unique
+  agentId                String?
+  driverId                String?
+  investorId               String?
+  batchItemId               String? @unique
+
+  // Module 59: both null for every transaction created before this module,
+  // and for every webhook-sourced one after it, only ever set by the new
+  // staff-facing manual/cash payment tooling (lib/actions/manual-payments.ts).
+  // "note" is the staff-typed reason a MANUAL_ADJUSTMENT row exists, or,
+  // for a reversed row, why it was reversed (reversePaymentTransaction
+  // overwrites it with the reversal reason, the reason a row's status
+  // currently reads REVERSED is more useful than the reason it was first
+  // created, which the audit log still has either way). "recordedById" is
+  // a plain String (a StaffProfile id), not a real @relation, same
+  // "avoid a second migration for one narrow field" reasoning as
+  // KycDocument.reviewedById, see lib/data/kyc.ts's doc comment.
+  note         String?
+  recordedById String?
+
+  createdAt DateTime @default(now())
+
+  providerTransaction ProviderTransaction? @relation(fields: [providerTransactionId], references: [id])
+  batchItem           PaymentBatchItem?    @relation(fields: [batchItemId], references: [id])
+  allocations         PaymentAllocation[]
+  // Set only when this transaction is a PAYOUT_HELD wallet credit (a batch
+  // item routed to the investor's wallet instead of their bank account) or
+  // a DEPOSIT wallet credit (a real bank transfer into the investor's own
+  // Dedicated Virtual Account). See WalletTransaction.paymentTransactionId.
+  walletTransaction   WalletTransaction?
+
+  @@map("payment_transactions")
+}
+
+model PaymentAllocation {
+  id                    String   @id @default(uuid())
+  paymentTransactionId  String
+  scheduleEntryId       String
+  amount                Decimal  @db.Decimal(14, 2)
+  createdAt             DateTime @default(now())
+
+  paymentTransaction PaymentTransaction   @relation(fields: [paymentTransactionId], references: [id], onDelete: Cascade)
+  scheduleEntry      PaymentScheduleEntry @relation(fields: [scheduleEntryId], references: [id])
+
+  @@map("payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Investor wallet. This is a ledger, not a real money-holding account, the
+// actual cash always sits in the company's bank account, see
+// InvestorProfile.walletBalance and docs/architecture for the full design.
+// Every balance-changing action other than a PAYOUT_HELD or DEPOSIT credit
+// requires a staff approval, the system never decides to move wallet money
+// on its own, PAYOUT_HELD and DEPOSIT are both just recording that a
+// payment rail (a batch transfer, a real bank deposit) already confirmed
+// real money moved, not the system deciding anything.
+// ---------------------------------------------------------------------------
+
+model WalletTransaction {
+  id           String                  @id @default(uuid())
+  investorId   String
+  type         WalletTransactionType
+  source       WalletTransactionSource
+  amount       Decimal                 @db.Decimal(14, 2)
+  balanceAfter Decimal                 @db.Decimal(14, 2) // running balance snapshot right after this entry, so history reads cleanly without recomputation
+  note         String?
+
+  // Set only when source = PAYOUT_HELD or DEPOSIT: the PaymentTransaction
+  // this ledger entry mirrors, so the investor's wallet history and their
+  // payment history both point at the same underlying transfer record
+  // rather than each holding their own copy of it.
+  paymentTransactionId String? @unique
+
+  // Set only when source = DEPOSIT: a snapshot of
+  // InvestorProfile.depositIntent/depositIntentVehicleType taken at the
+  // moment this deposit was processed, so a later change to the investor's
+  // standing preference never rewrites what an already-processed deposit
+  // was actually for. depositIntentVehicleType is only meaningful when
+  // depositIntent is VEHICLE_PURCHASE.
+  depositIntent            DepositIntent?
+  depositIntentVehicleType VehicleType?
+
+  // Set only when source = VEHICLE_FUNDING: the brand new contract this
+  // wallet balance was converted into. Always created by an explicit staff
+  // approval, see lib/actions/wallet.ts, never automatically.
+  fundedContractId String? @unique
+
+  // Set only when source = WITHDRAWAL: the withdrawal request this debit
+  // settles.
+  withdrawalId String? @unique
+
+  createdById String? // reviewing/acting staff member; null for PAYOUT_HELD and DEPOSIT, both system recorded the moment the underlying transfer confirms
+  createdAt   DateTime @default(now())
+
+  investor           InvestorProfile     @relation(fields: [investorId], references: [id])
+  paymentTransaction PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id])
+  fundedContract     InvestmentContract? @relation(fields: [fundedContractId], references: [id])
+  withdrawal         WalletWithdrawal?   @relation(fields: [withdrawalId], references: [id])
+  createdBy          StaffProfile?       @relation(fields: [createdById], references: [id])
+
+  @@map("wallet_transactions")
+}
+
+model WalletWithdrawal {
+  id     String                 @id @default(uuid())
+  investorId String
+  amount Decimal                @db.Decimal(14, 2)
+  status WalletWithdrawalStatus @default(PENDING_APPROVAL)
+
+  reviewedById    String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+
+  // Populated once a staff member approves and the real Paystack transfer to
+  // the investor's bank account is initiated, same idea as
+  // PaymentBatchItem.paystackTransferCode / failureReason.
+  paystackTransferCode String?
+  failureReason         String?
+
+  createdAt DateTime @default(now())
+
+  investor          InvestorProfile    @relation(fields: [investorId], references: [id])
+  reviewedBy         StaffProfile?      @relation(fields: [reviewedById], references: [id])
+  walletTransaction  WalletTransaction?
+
+  @@map("wallet_withdrawals")
+}
+
+// ---------------------------------------------------------------------------
+// Weekly investor payout batches (maker-checker)
+// ---------------------------------------------------------------------------
+
+model PaymentBatch {
+  id          String      @id @default(uuid())
+  periodLabel String      // e.g. "Week 34, 2026"
+  status      BatchStatus @default(DRAFT)
+  totalAmount Decimal     @db.Decimal(14, 2)
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy StaffProfile           @relation("BatchCreatedBy", fields: [createdById], references: [id])
+  items     PaymentBatchItem[]
+  approvals PaymentBatchApproval[]
+
+  @@map("payment_batches")
+}
+
+model PaymentBatchItem {
+  id         String                   @id @default(uuid())
+  batchId    String
+  contractId String
+  investorId String
+  amount     Decimal                  @db.Decimal(14, 2)
+
+  transferStatus       BatchItemTransferStatus @default(PENDING)
+  paystackTransferCode String?
+  failureReason         String?
+
+  // Decided by staff when the batch is created (or reviewed pre-approval),
+  // never by the system: BANK sends a real Paystack transfer as before,
+  // WALLET credits the investor's in-app wallet ledger instead, no bank
+  // transfer happens for that item.
+  payoutDestination PayoutDestination @default(BANK)
+
+  batch      PaymentBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  contract   InvestmentContract  @relation(fields: [contractId], references: [id])
+  investor   InvestorProfile     @relation(fields: [investorId], references: [id])
+  paymentTransaction PaymentTransaction?
+
+  @@map("payment_batch_items")
+}
+
+model PaymentBatchApproval {
+  id         String            @id @default(uuid())
+  batchId    String
+  approvedById String
+  decision   ApprovalDecision
+  note       String?
+  createdAt  DateTime          @default(now())
+
+  batch      PaymentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  approvedBy StaffProfile @relation(fields: [approvedById], references: [id])
+
+  @@map("payment_batch_approvals")
+}
+
+// ---------------------------------------------------------------------------
+// Ownership transfer workflow (never automatic, always staff verified and
+// approved, even though "target achieved" is detected automatically)
+// ---------------------------------------------------------------------------
+
+model OwnershipTransfer {
+  id         String                  @id @default(uuid())
+  contractId String
+  vehicleId  String
+  target     OwnershipTransferTarget
+  status     OwnershipTransferStatus @default(TARGET_ACHIEVED)
+
+  fromInvestorId String
+  toInvestorId   String? // set only when target = NEW_INVESTOR
+
+  verifiedById String?
+  verifiedAt   DateTime?
+  approvedById String?
+  approvedAt   DateTime?
+  completedAt  DateTime?
+  notes        String?
+
+  createdAt DateTime @default(now())
+
+  contract     InvestmentContract @relation(fields: [contractId], references: [id])
+  vehicle      Vehicle            @relation(fields: [vehicleId], references: [id])
+  fromInvestor InvestorProfile    @relation("TransferFromInvestor", fields: [fromInvestorId], references: [id])
+  toInvestor   InvestorProfile?   @relation("TransferToInvestor", fields: [toInvestorId], references: [id])
+  verifiedBy   StaffProfile?      @relation("TransferVerifiedBy", fields: [verifiedById], references: [id])
+  approvedBy   StaffProfile?      @relation("TransferApprovedBy", fields: [approvedById], references: [id])
+
+  @@map("ownership_transfers")
+}
+
+// ---------------------------------------------------------------------------
+// Documents (non-KYC), audit, notifications, configuration
+// ---------------------------------------------------------------------------
+
+model Document {
+  id           String             @id @default(uuid())
+  vehicleId    String?
+  contractId   String?
+  type         DocumentType
+  storagePath  String
+  fileName     String
+  visibility   DocumentVisibility @default(STAFF_ONLY)
+  uploadedById String
+  createdAt    DateTime           @default(now())
+
+  vehicle  Vehicle?             @relation(fields: [vehicleId], references: [id])
+  contract InvestmentContract?  @relation(fields: [contractId], references: [id])
+
+  @@map("documents")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorUserId  String
+  action       String   // e.g. "payment_batch.approve"
+  entityType   String
+  entityId     String
+  beforeState  Json?
+  afterState   Json?
+  createdAt    DateTime @default(now())
+
+  actor User @relation(fields: [actorUserId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Notification {
+  id             String              @id @default(uuid())
+  recipientUserId String
+  channel        NotificationChannel
+  type           String              // e.g. "payment_received", "kyc_status_changed"
+  title          String
+  body           String
+  status         NotificationStatus  @default(PENDING)
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+
+  recipient User @relation(fields: [recipientUserId], references: [id])
+
+  @@map("notifications")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique // e.g. "default_contract_terms_car", one row per vehicle type, see lib/vehicle-types.ts
+  value       Json
+  description String?
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
