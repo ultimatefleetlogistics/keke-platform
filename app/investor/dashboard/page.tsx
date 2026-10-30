@@ -193,7 +193,11 @@ export default async function InvestorDashboardPage() {
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {data.vehicles.map((vehicle) => (
-                <Card key={vehicle.assetTag} className="p-5">
+                // 2026-10-30: wasn't wired up at all before — see the
+                // dated comment on app/investor/vehicles/[assetTag]/page.tsx
+                // for why (mobile-only feature, never ported to web).
+                <a key={vehicle.assetTag} href={`/investor/vehicles/${encodeURIComponent(vehicle.assetTag)}`}>
+                <Card className="p-5 hover:shadow-card-hover">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="flex h-13 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-accent-soft">
@@ -242,6 +246,7 @@ export default async function InvestorDashboardPage() {
                     </div>
                   </div>
                 </Card>
+                </a>
               ))}
             </div>
           )}

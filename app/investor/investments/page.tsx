@@ -53,7 +53,11 @@ export default async function InvestorInvestmentsPage() {
           </Card>
         ) : (
           investments.map((investment) => (
-            <Card key={investment.id} className="p-5.5">
+            // 2026-10-30: same fix as the dashboard's "My vehicles" cards
+            // — see the dated comment on
+            // app/investor/vehicles/[assetTag]/page.tsx.
+            <a key={investment.id} href={`/investor/vehicles/${encodeURIComponent(investment.assetTag)}`}>
+            <Card className="p-5.5 hover:shadow-card-hover">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
@@ -120,6 +124,7 @@ export default async function InvestorInvestmentsPage() {
                 <span>Started: {investment.startDate ? formatDate(investment.startDate) : "Not started yet"}</span>
               </div>
             </Card>
+            </a>
           ))
         )}
       </div>
