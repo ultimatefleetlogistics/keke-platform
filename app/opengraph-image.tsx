@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 export const runtime = "nodejs";
-export const alt = "Ultimate: Keke Investment & Fleet Management";
+export const alt = "Ultimate — Keke Investment & Fleet Management";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -28,17 +28,25 @@ export const contentType = "image/png";
  * file's source. The container went from the product's gold accent to
  * white for the same reason every other placement of this icon does:
  * the icon's own blue/gold only reads correctly on a light surface, and
- * this image's background is a dark charcoal gradient. Fonts are read
- * from the same self-hosted files app/layout.tsx already loads (see
- * that file's own comment on why local over next/font/google),
+ * this image's background is a dark charcoal gradient.
+ *
+ * Fonts are read from `.ttf` siblings of the `.woff2` files app/layout.tsx
+ * loads (see that file's own comment on why local over next/font/google).
+ * Deliberately not the same `.woff2` files: next/og's renderer (Satori,
+ * via opentype.js) can only parse TrueType/OpenType outlines, not WOFF2's
+ * brotli-compressed table format, and fails the whole build with
+ * "Unsupported OpenType signature wOF2" if pointed at one. The two `.ttf`
+ * files here are the exact same Plus Jakarta Sans 500/800 glyphs, just
+ * decompressed back to plain TrueType, so this route always matches
+ * whatever weight app/layout.tsx is actually shipping to the browser.
  * `runtime = "nodejs"` because reading local files needs node:fs,
  * unavailable on the edge runtime this file convention otherwise
  * defaults to.
  */
 export default async function OpengraphImage() {
   const [bold, medium, iconPng] = await Promise.all([
-    readFile(join(process.cwd(), "app/fonts/plus-jakarta-sans/plus-jakarta-sans-800.woff2")),
-    readFile(join(process.cwd(), "app/fonts/plus-jakarta-sans/plus-jakarta-sans-500.woff2")),
+    readFile(join(process.cwd(), "app/fonts/plus-jakarta-sans/plus-jakarta-sans-800.ttf")),
+    readFile(join(process.cwd(), "app/fonts/plus-jakarta-sans/plus-jakarta-sans-500.ttf")),
     readFile(join(process.cwd(), "public/brand/icon.png")),
   ]);
   const iconDataUrl = `data:image/png;base64,${iconPng.toString("base64")}`;
