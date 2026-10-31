@@ -21,7 +21,17 @@ const WORDS = ["keke", "gold", "kano", "abuja", "lagos", "river", "market", "tig
 
 function generateTemporaryPassword(): string {
   const word = WORDS[randomInt(0, WORDS.length)];
-  const digits = String(randomInt(1000, 9999));
+  // 2026-10-31: was randomInt(1000, 9999) (4 digits), which produced a
+  // 9-character password for any 4-letter word in WORDS (keke/gold/kano —
+  // 3 of 10, so a ~30% chance per account created). That was fine when
+  // this was written, but Supabase's Auth password policy was tightened
+  // to a 10-character minimum during this project's go-live hardening
+  // (see deployment-guide.md's Supabase section), and nobody cross-checked
+  // this generator against that change — it started failing with "Password
+  // should be at least 10 characters" the moment a short word got picked.
+  // 5 digits guarantees exactly 10 characters for the shortest word
+  // (4 + 5 + 1 for the trailing "!") and more for every longer one.
+  const digits = String(randomInt(10000, 99999));
   return `${word[0].toUpperCase()}${word.slice(1)}${digits}!`;
 }
 

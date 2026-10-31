@@ -18,7 +18,12 @@ const WORDS = ["keke", "gold", "kano", "abuja", "lagos", "river", "market", "tig
 
 function generateTemporaryPassword(): string {
   const word = WORDS[randomInt(0, WORDS.length)];
-  const digits = String(randomInt(1000, 9999));
+  // 2026-10-31: same fix as lib/actions/staff.ts's own copy of this
+  // generator, see that file's comment for the full reasoning — a
+  // 4-digit suffix produced a 9-character password for any 4-letter word
+  // in WORDS, which started failing once Supabase's Auth password policy
+  // was tightened to a 10-character minimum. 5 digits guarantees 10.
+  const digits = String(randomInt(10000, 99999));
   return `${word[0].toUpperCase()}${word.slice(1)}${digits}!`;
 }
 
