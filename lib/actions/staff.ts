@@ -135,8 +135,8 @@ export async function createStaffOrAgentAccount(formData: FormData): Promise<{ e
   await sendNotification({
     userId: newUser.id,
     type: "account_created",
-    title: "Your Ultimate account is ready",
-    body: `An Ultimate ${accountType === "STAFF" ? "staff" : "agent"} account has been created for you. Whoever set this up will share your sign-in details with you shortly.`,
+    title: "Your UFLogistics account is ready",
+    body: `An UFLogistics ${accountType === "STAFF" ? "staff" : "agent"} account has been created for you. Whoever set this up will share your sign-in details with you shortly.`,
     channels: ["EMAIL", "SMS"],
   });
 

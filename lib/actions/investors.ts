@@ -152,8 +152,8 @@ export async function createInvestor(formData: FormData): Promise<{ error?: stri
   await sendNotification({
     userId: newUser.id,
     type: "account_created",
-    title: "Your Ultimate account is ready",
-    body: "An Ultimate investor account has been created for you. Whoever set this up will share your sign-in details with you shortly.",
+    title: "Your UFLogistics account is ready",
+    body: "An UFLogistics investor account has been created for you. Whoever set this up will share your sign-in details with you shortly.",
     channels: ["EMAIL", "SMS"],
   });
 

@@ -121,10 +121,35 @@ export class PaystackProvider implements PaymentProvider {
   }
 
   async resolveBankAccount(params: { accountNumber: string; bankCode: string }): Promise<{ accountName: string }> {
-    const result = await paystackRequest<{ account_name: string }>(
-      `/bank/resolve?account_number=${encodeURIComponent(params.accountNumber)}&bank_code=${encodeURIComponent(params.bankCode)}`
-    );
-    return { accountName: result.account_name };
+    try {
+      const result = await paystackRequest<{ account_name: string }>(
+        `/bank/resolve?account_number=${encodeURIComponent(params.accountNumber)}&bank_code=${encodeURIComponent(params.bankCode)}`
+      );
+      return { accountName: result.account_name };
+    } catch (error) {
+      // 2026-10-31: paystackRequest's own thrown message includes the raw
+      // request path and query string (e.g. "Paystack request failed
+      // (/bank/resolve?account_number=...&bank_code=...): Could not
+      // resolve account name..."), and every caller of this function
+      // (createInvestor, updateInvestorBankDetails,
+      // requestPayoutDetailsChange) passed that straight through into a
+      // staff/investor-facing `{ error }` message. Surfaced directly to a
+      // real admin during live testing, where it read like an exposed
+      // debug/stack-trace line rather than a real product error — worth
+      // fixing here once rather than at each of the three call sites,
+      // since they all reuse this same function. The raw detail still
+      // reaches Vercel's function logs for whoever's actually debugging a
+      // real failure; everyone else sees one clean, actionable sentence.
+      // Note (confirmed live, 2026-10-31): this call can also fail
+      // transiently even for a perfectly real, valid account — a retry
+      // with the exact same account number and bank resolved cleanly
+      // seconds later — so this message says "try again" deliberately,
+      // not "this account doesn't exist."
+      console.error("resolveBankAccount failed:", error);
+      throw new Error(
+        "Could not verify that account number with the selected bank. Double-check the account number and bank, then try again — this step occasionally fails on a first attempt even for a valid account."
+      );
+    }
   }
 }
 

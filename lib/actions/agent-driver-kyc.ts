@@ -241,8 +241,8 @@ export async function reviewAgentDriverKyc(formData: FormData): Promise<{ error?
       title: decision === "VERIFIED" ? "Your identity has been verified" : "Your identity verification needs another look",
       body:
         decision === "VERIFIED"
-          ? "Ultimate staff have verified your identity documents."
-          : "Something on your submitted documents needs correcting. Contact Ultimate staff for details.",
+          ? "UFLogistics staff have verified your identity documents."
+          : "Something on your submitted documents needs correcting. Contact UFLogistics staff for details.",
       channels: ["EMAIL", "SMS"],
     });
   }

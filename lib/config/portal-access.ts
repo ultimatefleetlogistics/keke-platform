@@ -50,7 +50,7 @@ export function isAgentDriverPortalEnabled(): boolean {
  * `AGENT_DRIVER_PORTAL_DISABLED_MESSAGE`).
  */
 export const AGENT_DRIVER_PORTAL_DISABLED_MESSAGE =
-  "Agent and driver accounts don't sign in directly right now. Contact Ultimate staff for help with your remittances or deposits.";
+  "Agent and driver accounts don't sign in directly right now. Contact UFLogistics staff for help with your remittances or deposits.";
 
 /**
  * A separate on/off switch for the agent/driver remittance SMS/email

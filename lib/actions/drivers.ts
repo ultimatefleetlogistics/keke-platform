@@ -247,8 +247,8 @@ export async function createDriver(formData: FormData): Promise<{ error?: string
   await sendNotification({
     userId: newUser.id,
     type: "account_created",
-    title: "Your Ultimate account is ready",
-    body: "An Ultimate driver account has been created for you. Whoever set this up will share your sign-in details with you shortly.",
+    title: "Your UFLogistics account is ready",
+    body: "An UFLogistics driver account has been created for you. Whoever set this up will share your sign-in details with you shortly.",
     channels: ["EMAIL", "SMS"],
   });
 

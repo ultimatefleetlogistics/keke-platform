@@ -129,7 +129,7 @@ export async function signUpInvestor(formData: FormData): Promise<{ error?: stri
     await sendNotification({
       userId: newUser.id,
       type: "account_created",
-      title: "Welcome to Ultimate",
+      title: "Welcome to UFLogistics",
       body: "Your investor account is ready. Sign in anytime to track your investment.",
       channels: ["EMAIL", "SMS"],
     });
@@ -337,7 +337,7 @@ export async function changePassword(formData: FormData): Promise<{ error?: stri
     userId: user.id,
     type: "password_changed",
     title: "Your password was changed",
-    body: "Your Ultimate account password was just changed. If this wasn't you, contact an administrator immediately so your account can be secured.",
+    body: "Your UFLogistics account password was just changed. If this wasn't you, contact an administrator immediately so your account can be secured.",
     channels: ["EMAIL", "SMS"],
   });
 
@@ -391,7 +391,7 @@ export async function updateOwnPhone(formData: FormData): Promise<{ error?: stri
     userId: user.id,
     type: "phone_number_changed",
     title: "Your phone number was updated",
-    body: `The phone number on your Ultimate account was just changed to ${phone}. If this wasn't you, contact an administrator immediately so your account can be secured.`,
+    body: `The phone number on your UFLogistics account was just changed to ${phone}. If this wasn't you, contact an administrator immediately so your account can be secured.`,
     channels: ["EMAIL"],
   });
 

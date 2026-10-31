@@ -153,7 +153,7 @@ export function buildAlertEmailHtml(heading: string, alert: AlertDetails): strin
       <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background:#FFFFFF;border:1px solid #E7E9E4;border-radius:16px;overflow:hidden;">
         <tr>
           <td style="background:#1F1A12;padding:16px 20px;">
-            <span style="font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;color:#FDF6EA;">Ultimate</span>
+            <span style="font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;color:#FDF6EA;">UFLogistics</span>
           </td>
         </tr>
         <tr>
@@ -172,7 +172,7 @@ export function buildAlertEmailHtml(heading: string, alert: AlertDetails): strin
         </tr>
         <tr>
           <td style="padding:14px 24px;background:#F5F7F3;border-top:1px solid #E7E9E4;text-align:center;font-size:10.5px;color:#8A8F86;font-family:Arial,Helvetica,sans-serif;">
-            Automated message from Ultimate &middot; ${escapeHtml(ALERT_SUPPORT_EMAIL)}
+            Automated message from UFLogistics &middot; ${escapeHtml(ALERT_SUPPORT_EMAIL)}
           </td>
         </tr>
       </table>
