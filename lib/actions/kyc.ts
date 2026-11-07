@@ -182,7 +182,7 @@ export async function reviewInvestorKyc(formData: FormData): Promise<{ error?: s
       decision === "VERIFIED"
         ? "You're fully verified and can now be added to an investment contract."
         : "Something on your uploaded documents needs correcting. Sign in and check your KYC page for details.",
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
   });
 
   revalidatePath(`/admin/kyc/${investorId}`);

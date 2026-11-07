@@ -248,7 +248,7 @@ export async function approveWalletWithdrawal(formData: FormData): Promise<{ err
     type: "wallet_withdrawal_approved",
     title: "Your withdrawal was approved",
     body: `${formatNaira(Number(withdrawal.amount))} is on its way to your bank account.`,
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
     alert: {
       kind: "DEBIT",
       amount: Number(withdrawal.amount),
@@ -310,7 +310,7 @@ export async function rejectWalletWithdrawal(formData: FormData): Promise<{ erro
     body: reason
       ? `Your request for ${formatNaira(Number(withdrawal.amount))} was declined: "${reason}". The amount is still available in your wallet.`
       : `Your request for ${formatNaira(Number(withdrawal.amount))} was declined. The amount is still available in your wallet.`,
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
     alert: {
       kind: "DECLINED",
       amount: Number(withdrawal.amount),
@@ -469,7 +469,7 @@ export async function fundVehicleFromWallet(formData: FormData): Promise<{ error
       type: "wallet_vehicle_funded",
       title: "A new vehicle was funded from your wallet",
       body: `${formatNaira(principalAmount)} from your wallet balance has been put toward a new investment contract.`,
-      channels: ["EMAIL", "SMS"],
+      channels: ["EMAIL"],
       alert: {
         kind: "DEBIT",
         amount: principalAmount,

@@ -5,6 +5,7 @@ import { ActionForm, ActionSubmitButton } from "@/components/ui/action-form";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DocumentSection } from "@/components/documents/document-section";
@@ -12,7 +13,7 @@ import { formatDate, formatNaira } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getContractDetail } from "@/lib/data/contracts";
 import { getContractDocuments } from "@/lib/data/documents";
-import { deferScheduleEntry, undeferScheduleEntry } from "@/lib/actions/contracts";
+import { deferScheduleEntry, undeferScheduleEntry, recordHistoricalPayout } from "@/lib/actions/contracts";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 
 const CONTRACT_DOCUMENT_TYPES = [
@@ -118,6 +119,38 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             </div>
           </div>
         </Card>
+
+        {canManageSchedule && contract.status === "ACTIVE" ? (
+          <Card className="p-5">
+            <div className="text-sm font-extrabold">Record a historical payout</div>
+            <p className="mt-1 text-[12.5px] text-text-soft">
+              For a contract that started before this investor's account existed in the app — a lump sum they already
+              received by hand or bank transfer before go-live. This is applied against the oldest unpaid periods
+              first, same order a real payout would, and does not notify the investor, since nothing is happening
+              today. It does not touch Paystack or send any money.
+            </p>
+            <ActionForm action={recordHistoricalPayout} className="mt-3 flex flex-wrap items-end gap-2.5">
+              <input type="hidden" name="contractId" value={contract.id} />
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="historicalAmount">Amount already paid (NGN)</Label>
+                <Input id="historicalAmount" name="amount" type="number" step="0.01" min="1" className="w-44" required />
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label htmlFor="historicalNote">Note (required — becomes the audit trail)</Label>
+                <Input
+                  id="historicalNote"
+                  name="note"
+                  placeholder="e.g. Paid by hand before the app went live, per the original paper agreement"
+                  className="min-w-[260px]"
+                  required
+                />
+              </div>
+              <ActionSubmitButton size="sm" variant="outline">
+                Record payout
+              </ActionSubmitButton>
+            </ActionForm>
+          </Card>
+        ) : null}
 
         <Card className="overflow-hidden p-0">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">

@@ -229,7 +229,7 @@ export async function applyTransferOutcome(batchItemId: string, outcome: Transfe
       body: targetJustAchieved
         ? `${formatNaira(Number(item.amount))} was just transferred to your account. This payment also reached your contract's target payout, ownership of your vehicle is now moving to the manager.`
         : `${formatNaira(Number(item.amount))} was just transferred to your account.`,
-      channels: ["EMAIL", "SMS"],
+      channels: ["EMAIL"],
       alert,
     });
     if (targetJustAchieved) {
@@ -312,7 +312,7 @@ export async function applyWalletHold(batchItemId: string) {
       body: targetJustAchieved
         ? `${formatNaira(Number(item.amount))} was just added to your wallet, new balance ${formatNaira(newWalletBalance)}. This payment also reached your contract's target payout, ownership of your vehicle is now moving to the manager.`
         : `${formatNaira(Number(item.amount))} was just added to your wallet, new balance ${formatNaira(newWalletBalance)}.`,
-      channels: ["EMAIL", "SMS"],
+      channels: ["EMAIL"],
       alert,
     });
     if (targetJustAchieved) {

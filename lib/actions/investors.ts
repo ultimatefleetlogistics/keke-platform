@@ -153,8 +153,15 @@ export async function createInvestor(formData: FormData): Promise<{ error?: stri
     userId: newUser.id,
     type: "account_created",
     title: "Your UFLogistics account is ready",
-    body: "An UFLogistics investor account has been created for you. Whoever set this up will share your sign-in details with you shortly.",
-    channels: ["EMAIL", "SMS"],
+    // 2026-10-31: direct feedback that the old wording left the investor
+    // with no idea where to actually go. Still deliberately omits the
+    // password (see the comment above this call), but now at least
+    // points at the real sign-in page instead of leaving them to guess.
+    // No app-store mention yet: keke-mobile isn't published on either
+    // store, a link to a listing that doesn't exist would be worse than
+    // saying nothing. Add one line here once a store submission is live.
+    body: "Your UFLogistics investor account is ready. Sign in at https://www.ultimatefleetlogisticsltd.com/sign-in — whoever set this up will share your email and password with you shortly.",
+    channels: ["EMAIL"],
   });
 
   redirect(
@@ -430,7 +437,7 @@ export async function approveBankChangeRequest(formData: FormData): Promise<{ er
     type: "bank_change_approved",
     title: "Your bank change request was approved",
     body: `Your payout account is now ${request.accountName} (${request.accountNumber}).`,
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
   });
 
   revalidatePath("/admin/investors/bank-change-requests");
@@ -481,7 +488,7 @@ export async function rejectBankChangeRequest(formData: FormData): Promise<{ err
     body: reason
       ? `Your request to change your payout account was declined: "${reason}". Your existing account on file is unchanged.`
       : "Your request to change your payout account was declined. Your existing account on file is unchanged.",
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
   });
 
   revalidatePath("/admin/investors/bank-change-requests");

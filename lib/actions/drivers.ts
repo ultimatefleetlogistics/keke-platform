@@ -249,7 +249,7 @@ export async function createDriver(formData: FormData): Promise<{ error?: string
     type: "account_created",
     title: "Your UFLogistics account is ready",
     body: "An UFLogistics driver account has been created for you. Whoever set this up will share your sign-in details with you shortly.",
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
   });
 
   revalidatePath("/admin/drivers");

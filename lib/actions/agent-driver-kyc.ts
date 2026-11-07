@@ -243,7 +243,7 @@ export async function reviewAgentDriverKyc(formData: FormData): Promise<{ error?
         decision === "VERIFIED"
           ? "UFLogistics staff have verified your identity documents."
           : "Something on your submitted documents needs correcting. Contact UFLogistics staff for details.",
-      channels: ["EMAIL", "SMS"],
+      channels: ["EMAIL"],
     });
   }
 

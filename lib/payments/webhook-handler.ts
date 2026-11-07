@@ -195,7 +195,7 @@ async function handleChargeSuccess(providerTransactionId: string, data: Paystack
         type: "remittance_received",
         title: "Remittance received",
         body: depositMessage,
-        channels: ["EMAIL", "SMS"],
+        channels: ["EMAIL"],
         alert,
       });
     } else if (driver) {
@@ -295,7 +295,7 @@ async function handleInvestorDeposit(
     type: "investor_deposit_received",
     title: "Deposit received",
     body: `${formatNaira(amountNaira)} was received into your wallet.${intentNote}`,
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
     alert: {
       kind: "CREDIT",
       amount: amountNaira,

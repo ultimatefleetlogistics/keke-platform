@@ -131,7 +131,7 @@ export async function signUpInvestor(formData: FormData): Promise<{ error?: stri
       type: "account_created",
       title: "Welcome to UFLogistics",
       body: "Your investor account is ready. Sign in anytime to track your investment.",
-      channels: ["EMAIL", "SMS"],
+      channels: ["EMAIL"],
     });
   } catch (dbError) {
     // The Auth user and the Postgres rows aren't one transaction, if the
@@ -338,7 +338,7 @@ export async function changePassword(formData: FormData): Promise<{ error?: stri
     type: "password_changed",
     title: "Your password was changed",
     body: "Your UFLogistics account password was just changed. If this wasn't you, contact an administrator immediately so your account can be secured.",
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
   });
 
   return {};

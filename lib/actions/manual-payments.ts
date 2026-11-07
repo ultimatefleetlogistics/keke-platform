@@ -176,7 +176,7 @@ export async function recordManualPayment(formData: FormData): Promise<{ error?:
         type: "remittance_received",
         title: "Remittance received",
         body: `${formatNaira(amount)} was recorded against your collection account.`,
-        channels: ["EMAIL", "SMS"],
+        channels: ["EMAIL"],
         alert,
       });
     } else {

@@ -132,12 +132,23 @@ export async function createStaffOrAgentAccount(formData: FormData): Promise<{ e
   // Same welcome message every other account-creation path now sends,
   // see createInvestor's own comment for why the temporary password
   // itself is never included.
+  //
+  // 2026-10-31: staff got the same "sign in at [link]" addition as
+  // investors (see createInvestor), since staff sign in at /admin-sign-in
+  // same as always. Agents deliberately did NOT get a link here, unlike
+  // staff: AGENT_DRIVER_PORTAL_ENABLED is currently "false" (see
+  // lib/config/portal-access.ts), so agents can't actually sign in right
+  // now, telling one to would just be wrong. If that flag ever flips back
+  // on, this message should change too.
   await sendNotification({
     userId: newUser.id,
     type: "account_created",
     title: "Your UFLogistics account is ready",
-    body: `An UFLogistics ${accountType === "STAFF" ? "staff" : "agent"} account has been created for you. Whoever set this up will share your sign-in details with you shortly.`,
-    channels: ["EMAIL", "SMS"],
+    body:
+      accountType === "STAFF"
+        ? "Your UFLogistics staff account is ready. Sign in at https://www.ultimatefleetlogisticsltd.com/admin-sign-in — whoever set this up will share your email and password with you shortly."
+        : "An UFLogistics agent account has been created for you. Whoever set this up will share your remittance and deposit details with you shortly.",
+    channels: ["EMAIL"],
   });
 
   // Module 51: staff and agents now have entirely separate list/detail

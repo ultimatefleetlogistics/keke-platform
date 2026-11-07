@@ -113,7 +113,7 @@ export async function approveOwnershipTransfer(formData: FormData): Promise<{ er
     type: "ownership_transfer_completed",
     title: "Ownership transfer completed",
     body: `The ownership transfer for ${transfer.vehicle.assetTag} has been approved and completed.`,
-    channels: ["EMAIL", "SMS"],
+    channels: ["EMAIL"],
   });
 
   revalidatePath(`/admin/transfers/${transferId}`);

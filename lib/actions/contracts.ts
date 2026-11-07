@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth/current-user";
@@ -184,4 +185,174 @@ export async function undeferScheduleEntry(formData: FormData): Promise<{ error?
 
   revalidatePath(`/admin/contracts/${entry.contractId}`);
   revalidatePath("/admin/dashboard");
+}
+
+/**
+ * Backfills a lump sum an investor already received before this contract
+ * ever existed in the app — the migration gap: createInvestmentContract
+ * generates a contract's full schedule from its real (possibly backdated)
+ * startDate, but every entry starts UPCOMING/amountPaid 0 regardless of
+ * how far in the past that date is, so entering a contract's true history
+ * with no further action would show an investor months of periods they
+ * already collected as if they were still outstanding.
+ *
+ * Deliberately NOT routed through applyTransferOutcome/applyWalletHold
+ * (lib/payments/batch-processor.ts): those exist to move real money
+ * through Paystack right now, running a historical payout through them
+ * would try to pay the investor a second time and fire a "You've been
+ * paid" notification dated today for money that actually moved months
+ * ago. Instead this reuses PaymentSource.MANUAL_ADJUSTMENT, the same
+ * off-rails ledger entry recordManualPayment (lib/actions/manual-
+ * payments.ts) already uses for agent/driver cash remittances, just on
+ * the investor/OUTBOUND side, where nothing had set it before. No
+ * sendNotification call anywhere in this function, on purpose: this
+ * records something that already happened, it is never "news" to the
+ * investor the way a live payout is.
+ *
+ * One figure in, auto-allocated across schedule entries oldest-due-first,
+ * the same ordering recordPayout itself uses, so the periods that show
+ * PAID afterward are whichever ones a real chronological payout history
+ * would have settled first. Unlike recordPayout (which always dumps a
+ * whole batch item onto a single entry, since a live batch item is
+ * already sized to exactly one entry's shortfall), this genuinely splits
+ * across as many entries as the amount covers, since a staff member
+ * entering months of history in one go has no reason to know or type the
+ * individual per-period split themselves. Any remainder left over once
+ * every currently-generated entry is fully covered still counts toward
+ * totalPaidToInvestor (and can legitimately push the contract straight to
+ * TARGET_ACHIEVED on the spot) even though it has no specific entry to
+ * attach to — that's a real, correct state (the contract was paid off
+ * faster than its modeled term), not a bug to guard against.
+ */
+export async function recordHistoricalPayout(formData: FormData): Promise<{ error?: string } | void> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "You must be signed in." };
+  if (!user.staff || !user.permissions.has(PERMISSIONS.CONTRACTS_MANAGE)) {
+    return { error: "Your role doesn't include permission to manage contracts." };
+  }
+
+  const contractId = String(formData.get("contractId") ?? "").trim();
+  if (!contractId) return { error: "Missing contract." };
+
+  const amount = Number(formData.get("amount"));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { error: "Enter a valid amount greater than zero." };
+  }
+
+  const note = String(formData.get("note") ?? "").trim();
+  if (!note) {
+    return {
+      error: "A note is required — what this covers and how you know the figure, this becomes the audit trail for it.",
+    };
+  }
+
+  const contract = await prisma.investmentContract.findUnique({ where: { id: contractId } });
+  if (!contract) return { error: "That contract no longer exists." };
+  if (contract.status !== "ACTIVE") {
+    return {
+      error: `This contract is ${contract.status.toLowerCase().replaceAll("_", " ")}, a historical payout can only be recorded against an active contract.`,
+    };
+  }
+
+  let targetJustAchieved = false;
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const paymentTransaction = await tx.paymentTransaction.create({
+      data: {
+        direction: "OUTBOUND",
+        source: "MANUAL_ADJUSTMENT",
+        amount,
+        status: "ALLOCATED",
+        investorId: contract.investorId,
+        note,
+        recordedById: user.staff!.id,
+      },
+    });
+
+    const openEntries = await tx.paymentScheduleEntry.findMany({
+      where: { contractId, status: { in: ["UPCOMING", "DUE", "PARTIALLY_PAID"] } },
+      orderBy: { dueDate: "asc" },
+    });
+
+    let remaining = amount;
+    let entriesTouched = 0;
+    for (const entry of openEntries) {
+      if (remaining <= 0) break;
+      const stillOwed = Number(entry.expectedAmount) - Number(entry.amountPaid);
+      if (stillOwed <= 0) continue;
+      const applied = Math.min(remaining, stillOwed);
+
+      await tx.paymentAllocation.create({
+        data: { paymentTransactionId: paymentTransaction.id, scheduleEntryId: entry.id, amount: applied },
+      });
+
+      const newAmountPaid = Number(entry.amountPaid) + applied;
+      await tx.paymentScheduleEntry.update({
+        where: { id: entry.id },
+        data: {
+          amountPaid: newAmountPaid,
+          status: newAmountPaid >= Number(entry.expectedAmount) ? "PAID" : "PARTIALLY_PAID",
+        },
+      });
+
+      remaining -= applied;
+      entriesTouched += 1;
+    }
+
+    const updatedContract = await tx.investmentContract.update({
+      where: { id: contractId },
+      data: { totalPaidToInvestor: { increment: amount } },
+    });
+
+    // Same target-crossing check as recordPayout's own, see its doc
+    // comment in lib/payments/batch-processor.ts: once totalPaidToInvestor
+    // reaches the target, ownership starts moving to the manager
+    // regardless of how the payment landed on the ledger.
+    if (
+      updatedContract.status === "ACTIVE" &&
+      Number(updatedContract.totalPaidToInvestor) >= Number(updatedContract.targetPayoutAmount)
+    ) {
+      await tx.investmentContract.update({ where: { id: contractId }, data: { status: "TARGET_ACHIEVED" } });
+      await tx.ownershipTransfer.create({
+        data: {
+          contractId,
+          vehicleId: updatedContract.vehicleId,
+          target: "MANAGER",
+          status: "TARGET_ACHIEVED",
+          fromInvestorId: updatedContract.investorId,
+        },
+      });
+      targetJustAchieved = true;
+    }
+
+    await writeAuditLog(
+      {
+        actorUserId: user.id,
+        action: "contract.record_historical_payout",
+        entityType: "InvestmentContract",
+        entityId: contractId,
+        afterState: {
+          amount,
+          note,
+          entriesTouched,
+          unallocatedRemainder: remaining,
+          targetJustAchieved,
+        },
+      },
+      tx
+    );
+  });
+
+  revalidatePath(`/admin/contracts/${contractId}`);
+  revalidatePath("/admin/investors");
+  revalidatePath("/admin/dashboard");
+  if (targetJustAchieved) {
+    revalidatePath("/admin/transfers");
+  }
+  // unallocatedRemainder (any part of `amount` left over once every
+  // currently-generated schedule entry was fully covered) is intentionally
+  // not surfaced as an error here, see this function's doc comment: it was
+  // still added to totalPaidToInvestor in full, nothing failed. The
+  // contract detail page staff land back on after this shows the updated
+  // total and progress bar directly, that's the confirmation.
 }
