@@ -39,8 +39,12 @@ export async function getAuditLogEntries(filter?: { entityType?: string }) {
     entityId: entry.entityId,
     actorName: entry.actor.fullName,
     actorEmail: entry.actor.email,
-    beforeState: entry.beforeState !== null ? JSON.stringify(entry.beforeState, null, 2) : null,
-    afterState: entry.afterState !== null ? JSON.stringify(entry.afterState, null, 2) : null,
+    // Passed through as the parsed JSON value Prisma already gives back
+    // (not re-stringified), so the page can build a readable field-by-field
+    // diff instead of printing two raw JSON blobs, see
+    // lib/audit-log-display.ts's diffAuditStates.
+    beforeState: entry.beforeState,
+    afterState: entry.afterState,
     createdAt: entry.createdAt.toISOString(),
   }));
 }

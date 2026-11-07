@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/current-user";
 import { getAuditLogEntries, getAuditLogEntityTypes } from "@/lib/data/audit-log";
+import { diffAuditStates, humanizeAuditAction } from "@/lib/audit-log-display";
 import { PERMISSIONS } from "@/lib/rbac/permissions";
 
 const SELECT_CLASS =
@@ -76,45 +77,80 @@ export default async function AuditLogPage({
         ) : (
           <Card className="overflow-hidden p-0">
             <div className="flex flex-col">
-              {entries.map((entry, index) => (
-                <div
-                  key={entry.id}
-                  className={`flex flex-wrap items-start justify-between gap-3 px-5 py-3.5 text-[13px] ${index > 0 ? "border-t border-border" : ""}`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="neutral">{entry.action}</Badge>
-                      <span className="font-semibold">{entry.actorName}</span>
-                    </div>
-                    <div className="mt-0.5 text-[12px] text-text-faint">
-                      {entry.entityType} · {entry.entityId} · {entry.actorEmail} · {formatDateTime(entry.createdAt)}
-                    </div>
-                  </div>
-                  {entry.beforeState || entry.afterState ? (
-                    <details className="text-[12px]">
-                      <summary className="cursor-pointer font-semibold text-accent-dark">Details</summary>
-                      <div className="mt-2 flex max-w-[420px] flex-col gap-2">
-                        {entry.beforeState ? (
-                          <div>
-                            <div className="text-[10.5px] font-bold uppercase tracking-wide text-text-faint">Before</div>
-                            <pre className="mt-1 overflow-x-auto rounded-xl bg-background p-3 text-[11px] leading-4 text-text-soft">
-                              {entry.beforeState}
-                            </pre>
-                          </div>
-                        ) : null}
-                        {entry.afterState ? (
-                          <div>
-                            <div className="text-[10.5px] font-bold uppercase tracking-wide text-text-faint">After</div>
-                            <pre className="mt-1 overflow-x-auto rounded-xl bg-background p-3 text-[11px] leading-4 text-text-soft">
-                              {entry.afterState}
-                            </pre>
-                          </div>
-                        ) : null}
+              {entries.map((entry, index) => {
+                // null beforeState/afterState -> nothing to show. A non-null
+                // diffRows that comes back empty means both sides exist but
+                // came out identical on every field (possible for an action
+                // that writes an audit row purely for the record, not
+                // because anything changed) -- still worth a details toggle
+                // in that case so staff can confirm nothing changed rather
+                // than wonder why no Details link is there at all.
+                const diffRows = diffAuditStates(entry.beforeState, entry.afterState);
+                const hasAnyState = entry.beforeState !== null || entry.afterState !== null;
+
+                return (
+                  <div
+                    key={entry.id}
+                    className={`flex flex-wrap items-start justify-between gap-3 px-5 py-3.5 text-[13px] ${index > 0 ? "border-t border-border" : ""}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="neutral">{humanizeAuditAction(entry.action)}</Badge>
+                        <span className="font-semibold">{entry.actorName}</span>
                       </div>
-                    </details>
-                  ) : null}
-                </div>
-              ))}
+                      <div className="mt-0.5 text-[12px] text-text-faint">
+                        {entry.entityType} · {entry.entityId} · {entry.actorEmail} · {formatDateTime(entry.createdAt)}
+                      </div>
+                    </div>
+                    {hasAnyState ? (
+                      <details className="text-[12px]">
+                        <summary className="cursor-pointer font-semibold text-accent-dark">What changed</summary>
+                        {diffRows ? (
+                          diffRows.length > 0 ? (
+                            <div className="mt-2 flex max-w-[420px] flex-col gap-1.5 rounded-xl bg-background p-3">
+                              {diffRows.map((row) => (
+                                <div key={row.key} className="flex flex-wrap items-baseline gap-x-1.5">
+                                  <span className="font-semibold text-text-faint">{row.label}:</span>
+                                  <span className="text-text-soft">{row.before}</span>
+                                  <span className="text-text-faint">&rarr;</span>
+                                  <span className="font-semibold">{row.after}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-2 max-w-[420px] rounded-xl bg-background p-3 text-text-soft">
+                              Recorded, nothing on it actually changed.
+                            </div>
+                          )
+                        ) : (
+                          // Fallback for the rare/future entry whose
+                          // beforeState or afterState isn't a plain object
+                          // (see diffAuditStates's own comment) -- shown raw
+                          // rather than guessed at.
+                          <div className="mt-2 flex max-w-[420px] flex-col gap-2">
+                            {entry.beforeState !== null ? (
+                              <div>
+                                <div className="text-[10.5px] font-bold uppercase tracking-wide text-text-faint">Before</div>
+                                <pre className="mt-1 overflow-x-auto rounded-xl bg-background p-3 text-[11px] leading-4 text-text-soft">
+                                  {JSON.stringify(entry.beforeState, null, 2)}
+                                </pre>
+                              </div>
+                            ) : null}
+                            {entry.afterState !== null ? (
+                              <div>
+                                <div className="text-[10.5px] font-bold uppercase tracking-wide text-text-faint">After</div>
+                                <pre className="mt-1 overflow-x-auto rounded-xl bg-background p-3 text-[11px] leading-4 text-text-soft">
+                                  {JSON.stringify(entry.afterState, null, 2)}
+                                </pre>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </details>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </Card>
         )}
