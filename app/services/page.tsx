@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ShoppingBag,
   TrendingUp,
-  Wallet,
   ShieldCheck,
   SlidersHorizontal,
   ChevronDown,
@@ -40,15 +39,11 @@ const KEKE_OPTIONS = [
     image: "/fleet/keke.png",
   },
   {
+    // 2026-11-16: merged Invest + Hire Purchase, same as app/page.tsx's copy.
     icon: TrendingUp,
-    title: "Invest",
-    description: "Explore tricycle investment arrangements with managed operations.",
-    image: "/fleet/keke.png",
-  },
-  {
-    icon: Wallet,
-    title: "Hire Purchase",
-    description: "Explore structured payment options for acquiring a tricycle.",
+    title: "Invest / Hire Purchase",
+    description:
+      "Explore tricycle investment arrangements with managed operations, or structured payment options for acquiring a tricycle.",
     image: "/fleet/keke.png",
   },
 ];
@@ -189,7 +184,7 @@ export default function ServicesPage() {
               <p className="text-[12.5px] font-bold uppercase tracking-[0.2em] text-accent">We Do It All</p>
               <h2 className="mt-2 text-[24px] font-extrabold text-text">Keke / Tricycle</h2>
             </Reveal>
-            <div className="mt-8 grid gap-8 sm:grid-cols-3">
+            <div className="mt-8 grid gap-8 sm:grid-cols-2">
               {KEKE_OPTIONS.map((option, i) => (
                 <Reveal key={option.title} delay={i * 110} className="group flex flex-col items-center text-center">
                   <div className="relative flex h-32 w-full items-center justify-center sm:h-44">

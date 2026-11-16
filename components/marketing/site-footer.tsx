@@ -146,6 +146,11 @@ export function SiteFooter() {
             <a href="tel:+2349019505552" className="mt-1 block text-[13px] text-white/70 hover:text-white">
               0901 950 5552
             </a>
+            {/* 2026-11-16: second number added per Saidu. Same tel:+234
+                convention as the first. */}
+            <a href="tel:+2348039392901" className="mt-1 block text-[13px] text-white/70 hover:text-white">
+              0803 939 2901
+            </a>
 
             <p className="mt-5 text-[12px] font-semibold uppercase tracking-wider text-white/40">
               Subscribe for updates

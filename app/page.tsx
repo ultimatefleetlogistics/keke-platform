@@ -8,7 +8,6 @@ import {
   Mail,
   ShoppingBag,
   TrendingUp,
-  Wallet,
   ShieldCheck,
   SlidersHorizontal,
   ChevronDown,
@@ -185,7 +184,7 @@ export default async function HomePage() {
             <p className="text-[12.5px] font-bold uppercase tracking-[0.2em] text-accent-dark">
               Keke / Tricycle
             </p>
-            <div className="mt-6 grid gap-8 sm:grid-cols-3">
+            <div className="mt-6 grid gap-8 sm:grid-cols-2">
               {KEKE_OPTIONS.map((option, i) => (
                 <Reveal key={option.title} delay={i * 110} className="group flex flex-col items-center text-center">
                   <div className="relative flex h-32 w-full items-center justify-center sm:h-44">
@@ -448,15 +447,14 @@ const KEKE_OPTIONS = [
     image: "/fleet/keke.png",
   },
   {
+    // 2026-11-16: Invest and Hire Purchase merged into one card per
+    // Saidu's request. Description joins the client's two original
+    // sentences (still their exact wording, just combined) rather than
+    // rewriting either one.
     icon: TrendingUp,
-    title: "Invest",
-    description: "Explore tricycle investment arrangements with managed operations.",
-    image: "/fleet/keke.png",
-  },
-  {
-    icon: Wallet,
-    title: "Hire Purchase",
-    description: "Explore structured payment options for acquiring a tricycle.",
+    title: "Invest / Hire Purchase",
+    description:
+      "Explore tricycle investment arrangements with managed operations, or structured payment options for acquiring a tricycle.",
     image: "/fleet/keke.png",
   },
 ];
