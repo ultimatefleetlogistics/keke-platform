@@ -163,7 +163,10 @@ export function SiteFooter() {
 
         <div className="mt-12 flex flex-col gap-2 border-t border-white/10 pt-6 text-[12px] text-white/40 sm:flex-row sm:items-center sm:justify-between">
           <span>&copy; {new Date().getFullYear()} Ultimate Fleet Logistics Ltd. All rights reserved.</span>
-          <span>Nigeria</span>
+          <span className="flex items-center gap-4">
+            <Link href="/privacy" className="hover:text-white">Privacy Policy</Link>
+            <span>Nigeria</span>
+          </span>
         </div>
       </div>
     </footer>

@@ -29,6 +29,8 @@ import { createServerClient } from "@supabase/ssr";
 const PUBLIC_PATHS = [
   "/",
   "/about",
+  // 2026-11-22: privacy policy, required public URL for both app stores.
+  "/privacy",
   "/services",
   "/sign-in",
   "/sign-up",
