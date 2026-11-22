@@ -141,10 +141,26 @@ export default function SignInPage() {
     }
 
     const supabase = createSupabaseBrowserClient();
-    const { error: linkError } = await supabase.auth.signInWithOtp({ email });
+    // shouldCreateUser: false (2026-11-22). Without it Supabase quietly
+    // CREATES a brand-new auth user for any email it doesn't know and
+    // emails them a link, which made this button a back-door sign-up (and
+    // left orphan auth users with no profile). Accounts here are created
+    // by staff only. Supabase answers an unknown email with a "signups
+    // not allowed" error, which is shown as the same neutral message as a
+    // real send, so the button can't be used to find out which emails
+    // have accounts (same rule as /forgot-password).
+    const { error: linkError } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
 
     setIsSubmitting(false);
-    setError(linkError ? linkError.message : "Check your email for a sign in link.");
+    const noAccount = Boolean(linkError && /signups? not allowed|not allowed for otp/i.test(linkError.message));
+    setError(
+      linkError && !noAccount
+        ? linkError.message
+        : "If an account exists for that email, a sign in link is on its way."
+    );
   }
 
   return (
