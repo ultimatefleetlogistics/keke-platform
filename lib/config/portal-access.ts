@@ -73,3 +73,23 @@ export const AGENT_DRIVER_PORTAL_DISABLED_MESSAGE =
 export function isAgentDriverRemittanceAlertEnabled(): boolean {
   return process.env.AGENT_DRIVER_REMITTANCE_ALERTS_ENABLED !== "false";
 }
+
+/**
+ * 2026-11-22: a separate on/off switch for PUBLIC investor self sign-up
+ * (the /sign-up page and the `signUpInvestor` Server Action behind it).
+ * Switched OFF by default, unlike the two flags above: it is on only when
+ * `PUBLIC_SIGNUP_ENABLED` is the literal string "true", so a deployment
+ * that never sets it stays closed.
+ *
+ * Why: the store-submission pass. Investors reach the company by
+ * referral and staff create their accounts (`createInvestor`), the
+ * mobile app has no sign-up screen, and an open page offering to "fund a
+ * tricycle, get paid weekly" reads as a public investment offer, which is
+ * exactly the regulatory question still waiting on a lawyer. The sign-up
+ * code stays built and working; turning it back on later is setting this
+ * one environment variable to "true" and redeploying, not a code change.
+ * Nothing about staff-created accounts depends on this flag.
+ */
+export function isPublicSignupEnabled(): boolean {
+  return process.env.PUBLIC_SIGNUP_ENABLED === "true";
+}

@@ -9,7 +9,11 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { isPlatformAdmin } from "@/lib/rbac/check-permission";
 import { writeAuditLog } from "@/lib/audit";
 import { sendNotification } from "@/lib/notifications/send-notification";
-import { isAgentDriverPortalEnabled, AGENT_DRIVER_PORTAL_DISABLED_MESSAGE } from "@/lib/config/portal-access";
+import {
+  isAgentDriverPortalEnabled,
+  isPublicSignupEnabled,
+  AGENT_DRIVER_PORTAL_DISABLED_MESSAGE,
+} from "@/lib/config/portal-access";
 
 /**
  * Called right after a Supabase password sign-in resolves client-side, on
@@ -85,6 +89,13 @@ export async function resolvePortalDestination(): Promise<{ path: string } | { e
  * establish the browser session afterward with the same credentials.
  */
 export async function signUpInvestor(formData: FormData): Promise<{ error?: string }> {
+  // 2026-11-22: closed unless PUBLIC_SIGNUP_ENABLED="true", see
+  // isPublicSignupEnabled. Checked here, not only on the page, because a
+  // Server Action can be called directly without ever loading /sign-up.
+  if (!isPublicSignupEnabled()) {
+    return { error: "Accounts are created by invitation. Contact Ultimate Fleet Logistics to get access." };
+  }
+
   const fullName = String(formData.get("fullName") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();

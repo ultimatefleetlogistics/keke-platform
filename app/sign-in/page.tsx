@@ -313,9 +313,9 @@ export default function SignInPage() {
         )}
 
         <div className="mt-6 text-center text-[12.5px] text-white/60">
-          New investor?{" "}
+          New here?{" "}
           <Link href="/sign-up" className="font-semibold text-accent">
-            Create an account
+            How to get access
           </Link>
         </div>
       </div>
