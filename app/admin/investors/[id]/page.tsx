@@ -210,6 +210,14 @@ export default async function InvestorDetailPage({
                       <div className="mt-0.5 text-[13px] font-bold">{formatNaira(investment.installment)}</div>
                     </div>
                   </div>
+                  <div className="mt-3.5 border-t border-border pt-3 text-right">
+                    <Link
+                      href={`/admin/contracts/${investment.id}`}
+                      className="text-[12.5px] font-bold text-accent-dark hover:underline"
+                    >
+                      Open contract →
+                    </Link>
+                  </div>
                 </Card>
               ))}
             </div>

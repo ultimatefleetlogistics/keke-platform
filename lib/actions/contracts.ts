@@ -51,7 +51,7 @@ export async function createInvestmentContract(formData: FormData): Promise<{ er
 
   const startDate = startDateInput ? new Date(startDateInput) : new Date();
 
-  await prisma.investmentContract.create({
+  const contract = await prisma.investmentContract.create({
     data: {
       investorId,
       vehicleId,
@@ -77,7 +77,10 @@ export async function createInvestmentContract(formData: FormData): Promise<{ er
   revalidatePath("/admin/investors");
   revalidatePath("/admin/fleet");
   revalidatePath("/admin/dashboard");
-  redirect(`/admin/investors`);
+  // Straight to the new contract's own page, where its schedule, deferrals
+  // and the historical payout card live, nothing else in the admin links to
+  // that page for a contract that isn't due today.
+  redirect(`/admin/contracts/${contract.id}`);
 }
 
 /**

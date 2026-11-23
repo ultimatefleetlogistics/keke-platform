@@ -8,6 +8,7 @@ import { ActionForm, ActionSubmitButton } from "@/components/ui/action-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/money-input";
 import { createInvestmentContract } from "@/lib/actions/contracts";
 import type { DefaultContractTerms } from "@/lib/vehicle-types";
 
@@ -87,27 +88,21 @@ export function NewContractForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="principalAmount">Principal amount (NGN)</Label>
-          <Input
+          <MoneyInput
             id="principalAmount"
             name="principalAmount"
-            type="number"
-            step="0.01"
-            min="1"
             value={terms.principalAmount}
-            onChange={(e) => setTerms((t) => ({ ...t, principalAmount: Number(e.target.value) }))}
+            onValueChange={(v) => setTerms((t) => ({ ...t, principalAmount: v }))}
             required
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="targetPayoutAmount">Target payout amount (NGN)</Label>
-          <Input
+          <MoneyInput
             id="targetPayoutAmount"
             name="targetPayoutAmount"
-            type="number"
-            step="0.01"
-            min="1"
             value={terms.targetPayoutAmount}
-            onChange={(e) => setTerms((t) => ({ ...t, targetPayoutAmount: Number(e.target.value) }))}
+            onValueChange={(v) => setTerms((t) => ({ ...t, targetPayoutAmount: v }))}
             required
           />
         </div>
@@ -116,14 +111,11 @@ export function NewContractForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="installmentAmount">Installment amount (NGN)</Label>
-          <Input
+          <MoneyInput
             id="installmentAmount"
             name="installmentAmount"
-            type="number"
-            step="0.01"
-            min="1"
             value={terms.installmentAmount}
-            onChange={(e) => setTerms((t) => ({ ...t, installmentAmount: Number(e.target.value) }))}
+            onValueChange={(v) => setTerms((t) => ({ ...t, installmentAmount: v }))}
             required
           />
         </div>

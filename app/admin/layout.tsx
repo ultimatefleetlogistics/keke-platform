@@ -78,6 +78,10 @@ const navGroups: NavGroup[] = [
             <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           </svg>
         ),
+        children: [
+          { label: "All investors", href: "/admin/investors" },
+          { label: "New contract", href: "/admin/contracts/new" },
+        ],
       },
       {
         label: "Payments",
