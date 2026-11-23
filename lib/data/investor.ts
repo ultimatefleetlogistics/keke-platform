@@ -15,7 +15,7 @@ export async function getInvestorDashboardData(investor: InvestorProfile) {
   // another's, right on the boundary of a due date.
   const now = new Date();
 
-  const [contracts, payoutTransactions] = await Promise.all([
+  const [contracts, payoutTransactions, historicalAllocations] = await Promise.all([
     prisma.investmentContract.findMany({
       where: { investorId: investor.id },
       include: {
@@ -42,6 +42,24 @@ export async function getInvestorDashboardData(investor: InvestorProfile) {
         createdAt: { gte: weeksAgoStart(8) },
       },
       select: { amount: true, createdAt: true },
+    }),
+    // Payouts that staff backfilled with "Record a historical payout"
+    // (recordHistoricalPayout in lib/actions/contracts.ts): money that was
+    // paid to the investor before this platform tracked it. They land on the
+    // ledger as MANUAL_ADJUSTMENT rows stamped with the day they were typed
+    // in, so charting them by that date would pile the whole backfill into
+    // the current week. Each allocation points at the schedule entry it
+    // covered, so those are charted in the week that instalment fell due.
+    prisma.paymentAllocation.findMany({
+      where: {
+        paymentTransaction: {
+          investorId: investor.id,
+          direction: "OUTBOUND",
+          source: "MANUAL_ADJUSTMENT",
+        },
+        scheduleEntry: { dueDate: { gte: weeksAgoStart(8) } },
+      },
+      select: { amount: true, scheduleEntry: { select: { dueDate: true } } },
     }),
   ]);
 
@@ -168,7 +186,10 @@ export async function getInvestorDashboardData(investor: InvestorProfile) {
     .slice(0, 6);
 
   const payoutTrend = buildWeeklyTrend(
-    payoutTransactions.map((tx) => ({ amount: Number(tx.amount), createdAt: tx.createdAt }))
+    [
+      ...payoutTransactions.map((tx) => ({ amount: Number(tx.amount), createdAt: tx.createdAt })),
+      ...historicalAllocations.map((a) => ({ amount: Number(a.amount), createdAt: a.scheduleEntry.dueDate })),
+    ]
   );
 
   return {
