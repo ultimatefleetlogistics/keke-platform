@@ -93,7 +93,7 @@ export default async function InvestorDashboardPage() {
             {user.investor.kycStatus === "VERIFIED"
               ? "KYC Verified"
               : user.investor.kycStatus === "PENDING_REVIEW"
-                ? "KYC Pending review"
+                ? "KYC Submitted"
                 : "KYC Not started"}
           </Badge>
         </div>

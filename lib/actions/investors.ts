@@ -117,6 +117,11 @@ export async function createInvestor(formData: FormData): Promise<{ error?: stri
       mustChangePassword: true,
       investor: {
         create: {
+          // Staff entering the investor's details is the submission: this
+          // app no longer collects NIN/BVN from the investor, so there is
+          // no later step that would move a staff-created account off
+          // "Not started". Shown as "Submitted" in the admin screens.
+          kycStatus: "PENDING_REVIEW",
           defaultPayoutDestination: payoutDestination,
           ...(bankCode && accountNumber
             ? { bankCode, bankAccountNumber: accountNumber, bankAccountName }

@@ -26,7 +26,7 @@ const KYC_VARIANT: Record<string, "good" | "warn" | "bad" | "pending" | "accent"
 
 const KYC_LABEL: Record<string, string> = {
   NOT_STARTED: "Not started",
-  PENDING_REVIEW: "Pending review",
+  PENDING_REVIEW: "Submitted",
   VERIFIED: "Verified",
   REJECTED: "Rejected",
 };
